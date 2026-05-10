@@ -66,7 +66,7 @@
     .app-sub  { font-size: 10px; color: var(--muted); letter-spacing: 0.05em; }
     .header-sep { flex: 1; }
 
-    #image-info { font-size: 10px; color: var(--muted); display: none; }
+    #image-info { font-size: 10px; color: var(--muted2); display: none; }
 
     .hdr-btn {
       padding: 5px 12px;
@@ -113,13 +113,8 @@
     .dz-sub   { font-size: 11px; color: var(--muted2); text-align: center; line-height: 1.8; }
     .dz-btn {
       padding: 8px 20px;
-      background: var(--accent-dim);
-      border: 1px solid var(--accent);
-      border-radius: 5px;
-      color: #f0d8a8;
-      font-size: 12px;
-      cursor: pointer;
-      transition: background 0.12s;
+      background: var(--accent-dim); border: 1px solid var(--accent);
+      border-radius: 5px; color: #f0d8a8; font-size: 12px; cursor: pointer;
     }
     .dz-btn:hover { background: var(--accent); color: #1a0a00; }
 
@@ -127,109 +122,121 @@
     #workspace { display: none; flex: 1; overflow: hidden; }
     #workspace.active { display: flex; }
 
-    /* Left column: preview + filmstrip */
-    #left-col {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      min-width: 0;
-    }
+    /* Left column */
+    #left-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 
     /* ── Preview area ────────────────────────────────────── */
     #preview-area {
       flex: 1;
       background: #050505;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      position: relative;
-      min-height: 0;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; position: relative; min-height: 0;
     }
 
-    #canvas-wrap {
-      position: relative;
-      line-height: 0;
-      max-width: 100%;
-      max-height: 100%;
-    }
+    #canvas-wrap { position: relative; line-height: 0; max-width: 100%; max-height: 100%; }
 
-    #output-canvas {
-      display: block;
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-    }
+    #output-canvas { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
 
     #before-canvas {
-      position: absolute;
-      top: 0; left: 0;
+      position: absolute; top: 0; left: 0;
       width: 100%; height: 100%;
-      display: none;
-      pointer-events: none;
+      display: none; pointer-events: none;
     }
 
     #split-handle {
-      position: absolute;
-      top: 0; width: 2px; height: 100%;
-      background: var(--accent);
-      cursor: ew-resize;
-      display: none;
-      z-index: 5;
+      position: absolute; top: 0; width: 2px; height: 100%;
+      background: var(--accent); cursor: ew-resize; display: none; z-index: 5;
     }
     #split-handle::after {
       content: '◀ ▶';
-      position: absolute;
-      top: 50%; left: 50%;
+      position: absolute; top: 50%; left: 50%;
       transform: translate(-50%, -50%);
-      background: var(--accent);
-      color: #1a0a00;
-      font-size: 9px;
-      padding: 4px 5px;
-      border-radius: 10px;
-      white-space: nowrap;
-      letter-spacing: 2px;
+      background: var(--accent); color: #1a0a00;
+      font-size: 9px; padding: 4px 5px;
+      border-radius: 10px; white-space: nowrap; letter-spacing: 2px;
     }
 
     .view-label {
       position: absolute; top: 10px;
-      background: rgba(0,0,0,0.7);
-      padding: 3px 8px; border-radius: 3px;
+      background: rgba(0,0,0,0.7); padding: 3px 8px; border-radius: 3px;
       font-size: 10px; color: var(--muted2);
-      display: none; pointer-events: none;
-      z-index: 6; letter-spacing: 0.08em;
+      display: none; pointer-events: none; z-index: 6; letter-spacing: 0.08em;
     }
     #lbl-before { left: 10px; }
     #lbl-after  { right: 10px; }
 
+    /* ── Queue bar ───────────────────────────────────────── */
+    #queue-bar {
+      height: 30px;
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    #queue-count {
+      font-size: 10px;
+      color: var(--muted2);
+      font-variant-numeric: tabular-nums;
+    }
+
+    #queue-count strong {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .queue-sep { flex: 1; }
+
+    /* Apply mode toggle */
+    #apply-mode-btn {
+      padding: 3px 10px;
+      border-radius: 3px;
+      font-size: 10px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface3);
+      color: var(--text);
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+      display: flex; align-items: center; gap: 5px;
+    }
+    #apply-mode-btn:hover { background: #383838; }
+    #apply-mode-btn.mode-all {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: #f0d8a8;
+    }
+
+    .apply-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: currentColor; display: inline-block;
+      opacity: 0.7;
+    }
+
     /* ── Filmstrip ───────────────────────────────────────── */
     #filmstrip {
-      height: 90px;
+      height: 84px;
       border-top: 1px solid var(--border);
       background: var(--surface);
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 7px 10px;
+      gap: 5px;
+      padding: 6px 10px;
       overflow-x: auto;
       overflow-y: hidden;
       flex-shrink: 0;
       scrollbar-width: thin;
       scrollbar-color: var(--border) transparent;
     }
-    #filmstrip::-webkit-scrollbar { height: 4px; }
+    #filmstrip::-webkit-scrollbar { height: 3px; }
     #filmstrip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
     .film-item {
       flex-shrink: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      cursor: pointer;
-      border-radius: 4px;
-      padding: 3px;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      cursor: pointer; border-radius: 4px; padding: 3px;
       border: 1.5px solid transparent;
       transition: border-color 0.15s, background 0.15s;
     }
@@ -237,45 +244,32 @@
     .film-item.active { border-color: var(--accent); background: rgba(201,169,110,0.1); }
 
     .film-thumb-wrap {
-      position: relative;
-      width: 64px; height: 48px;
-      background: #000;
-      border-radius: 2px;
-      overflow: hidden;
-      flex-shrink: 0;
+      position: relative; width: 64px; height: 48px;
+      background: #000; border-radius: 2px; overflow: hidden; flex-shrink: 0;
     }
+    .film-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-    .film-thumb {
-      width: 100%; height: 100%;
-      object-fit: cover;
-      display: block;
-      border-radius: 2px;
+    /* Per-image indicator dot (shows settings differ from global S) */
+    .film-unique-dot {
+      position: absolute; top: 3px; right: 3px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent);
+      display: none;
     }
+    .film-item.has-custom .film-unique-dot { display: block; }
 
     .film-name {
-      font-size: 9px;
-      color: var(--muted2);
-      max-width: 70px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      text-align: center;
+      font-size: 9px; color: var(--muted2);
+      max-width: 70px; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; text-align: center;
     }
 
-    /* Add-more button in filmstrip */
     #film-add-btn {
       flex-shrink: 0;
-      width: 64px; height: 74px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-      cursor: pointer;
-      border: 1.5px dashed var(--border);
-      border-radius: 4px;
-      color: var(--muted);
-      font-size: 20px;
+      width: 64px; height: 68px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+      cursor: pointer; border: 1.5px dashed var(--border); border-radius: 4px;
+      color: var(--muted); font-size: 18px;
       transition: border-color 0.15s, color 0.15s;
     }
     #film-add-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -286,10 +280,8 @@
       width: 272px;
       background: var(--surface);
       border-left: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      flex-shrink: 0;
+      display: flex; flex-direction: column;
+      overflow: hidden; flex-shrink: 0;
     }
 
     #hist-wrap {
@@ -300,45 +292,34 @@
     #hist-canvas { width: 100%; height: 56px; display: block; border-radius: 3px; }
 
     #toolbar {
-      display: flex; gap: 5px;
-      padding: 7px 10px;
+      display: flex; gap: 5px; padding: 7px 10px;
       border-bottom: 1px solid var(--border);
-      background: var(--surface2);
-      flex-wrap: wrap;
+      background: var(--surface2); flex-wrap: wrap;
     }
 
     .tb-btn {
       padding: 4px 9px;
-      background: var(--surface3);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 3px;
-      cursor: pointer;
-      font-size: 10px;
-      transition: background 0.1s, border-color 0.1s;
-      letter-spacing: 0.03em;
+      background: var(--surface3); border: 1px solid var(--border); color: var(--text);
+      border-radius: 3px; cursor: pointer; font-size: 10px;
+      transition: background 0.1s, border-color 0.1s; letter-spacing: 0.03em;
     }
     .tb-btn:hover { background: #383838; border-color: var(--muted); }
     .tb-btn.active { background: var(--accent-dim); border-color: var(--accent); color: #f0d8a8; }
     .tb-sep { flex: 1; }
 
     #controls {
-      flex: 1;
-      overflow-y: auto;
-      scrollbar-width: thin;
-      scrollbar-color: var(--border) transparent;
+      flex: 1; overflow-y: auto;
+      scrollbar-width: thin; scrollbar-color: var(--border) transparent;
     }
     #controls::-webkit-scrollbar { width: 5px; }
     #controls::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
     .sec { border-bottom: 1px solid var(--border2); }
-
     .sec-hdr {
       display: flex; align-items: center; justify-content: space-between;
       padding: 9px 12px; cursor: pointer; user-select: none;
     }
     .sec-hdr:hover { background: var(--surface2); }
-
     .sec-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted2); }
     .sec-arrow { color: var(--muted); font-size: 13px; line-height: 1; transition: transform 0.15s; }
     .sec.collapsed .sec-arrow { transform: rotate(-90deg); }
@@ -346,11 +327,8 @@
     .sec.collapsed .sec-body { display: none; }
 
     .ctrl {
-      display: grid;
-      grid-template-columns: minmax(0,1fr) 140px 38px;
-      align-items: center;
-      gap: 6px;
-      margin-bottom: 8px;
+      display: grid; grid-template-columns: minmax(0,1fr) 140px 38px;
+      align-items: center; gap: 6px; margin-bottom: 8px;
     }
     .ctrl:last-child { margin-bottom: 0; }
     .ctrl-lbl { font-size: 10px; color: var(--muted2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -358,14 +336,12 @@
 
     input[type=range] {
       -webkit-appearance: none; appearance: none;
-      width: 100%; height: 3px;
-      background: var(--surface3); border-radius: 2px; outline: none; cursor: pointer;
+      width: 100%; height: 3px; background: var(--surface3);
+      border-radius: 2px; outline: none; cursor: pointer;
     }
     input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 11px; height: 11px; border-radius: 50%;
-      background: var(--accent); cursor: pointer; border: none;
-      box-shadow: 0 0 0 2px var(--bg);
+      -webkit-appearance: none; width: 11px; height: 11px; border-radius: 50%;
+      background: var(--accent); cursor: pointer; border: none; box-shadow: 0 0 0 2px var(--bg);
     }
     input[type=range]::-moz-range-thumb {
       width: 11px; height: 11px; border-radius: 50%;
@@ -401,32 +377,22 @@
 
     /* ── Progress modal ──────────────────────────────────── */
     #progress-modal {
-      display: none;
-      position: fixed; inset: 0;
+      display: none; position: fixed; inset: 0;
       background: rgba(0,0,0,0.72);
-      align-items: center; justify-content: center;
-      z-index: 100;
+      align-items: center; justify-content: center; z-index: 100;
     }
     #progress-modal.show { display: flex; }
 
     .progress-box {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 28px 32px;
-      width: 320px;
-      display: flex; flex-direction: column; gap: 14px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 28px 32px; width: 340px;
+      display: flex; flex-direction: column; gap: 12px;
     }
     .progress-title { font-size: 14px; font-weight: 600; color: var(--accent); letter-spacing: 0.05em; }
-    .progress-bar-track {
-      height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden;
-    }
-    .progress-bar-fill {
-      height: 100%; background: var(--accent); border-radius: 2px;
-      transition: width 0.2s;
-      width: 0%;
-    }
-    .progress-text { font-size: 11px; color: var(--muted2); }
+    .progress-bar-track { height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.18s; width: 0%; }
+    .progress-count  { font-size: 13px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+    .progress-file   { font-size: 10px; color: var(--muted2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     input[type=file] { display: none; }
     * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
@@ -441,11 +407,12 @@
   <div class="header-sep"></div>
   <span id="image-info"></span>
   <button class="hdr-btn" onclick="document.getElementById('file-input').click()">Open Files</button>
-  <button class="hdr-btn hdr-btn-primary" id="export-btn" disabled onclick="exportCurrent()">Export</button>
-  <button class="hdr-btn hdr-btn-primary" id="export-all-btn" disabled onclick="exportAll()" style="display:none">Export All</button>
+  <button class="hdr-btn hdr-btn-primary" id="export-btn"     disabled onclick="exportCurrent()">Export</button>
+  <button class="hdr-btn hdr-btn-primary" id="export-all-btn" disabled onclick="exportAll()">Export All</button>
 </header>
 
 <div id="body">
+
   <!-- Drop zone -->
   <div id="drop-zone" onclick="document.getElementById('file-input').click()">
     <svg class="dz-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
@@ -455,7 +422,7 @@
     </svg>
     <div class="dz-title">Drop film negatives here</div>
     <div class="dz-sub">
-      Supports JPEG, PNG, WebP, TIFF, HEIC · Single or multiple files<br>
+      JPEG · PNG · WebP · TIFF · HEIC · Single or multiple files<br>
       Color or Black &amp; White negatives
     </div>
     <div class="dz-btn">Browse Files</div>
@@ -464,8 +431,9 @@
   <!-- Workspace -->
   <div id="workspace">
 
-    <!-- Left: preview + filmstrip -->
     <div id="left-col">
+
+      <!-- Preview -->
       <div id="preview-area">
         <div id="canvas-wrap">
           <canvas id="output-canvas"></canvas>
@@ -476,16 +444,27 @@
         </div>
       </div>
 
-      <!-- Filmstrip (only shown when >1 image or always after first load) -->
+      <!-- Queue bar: count + apply mode -->
+      <div id="queue-bar">
+        <span id="queue-count"><strong>0</strong> photo</span>
+        <div class="queue-sep"></div>
+        <button id="apply-mode-btn" onclick="toggleApplyMode()" class="mode-all">
+          <span class="apply-dot"></span>
+          Apply to all images
+        </button>
+      </div>
+
+      <!-- Filmstrip -->
       <div id="filmstrip">
         <div id="film-add-btn" onclick="document.getElementById('file-input').click()" title="Add more images">
           <span>+</span>
           <span>Add</span>
         </div>
       </div>
-    </div>
 
-    <!-- Right: sidebar -->
+    </div><!-- /left-col -->
+
+    <!-- Sidebar -->
     <div id="sidebar">
       <div id="hist-wrap">
         <canvas id="hist-canvas" width="248" height="56"></canvas>
@@ -504,8 +483,7 @@
         <!-- Presets -->
         <div class="sec">
           <div class="sec-hdr" onclick="toggleSec(this)">
-            <span class="sec-title">Presets</span>
-            <span class="sec-arrow">▾</span>
+            <span class="sec-title">Presets</span><span class="sec-arrow">▾</span>
           </div>
           <div class="sec-body">
             <div class="preset-grid">
@@ -534,8 +512,7 @@
         <!-- Film Base -->
         <div class="sec">
           <div class="sec-hdr" onclick="toggleSec(this)">
-            <span class="sec-title">Film Base · Orange Mask</span>
-            <span class="sec-arrow">▾</span>
+            <span class="sec-title">Film Base · Orange Mask</span><span class="sec-arrow">▾</span>
           </div>
           <div class="sec-body">
             <div class="ctrl">
@@ -559,8 +536,7 @@
         <!-- Tone -->
         <div class="sec">
           <div class="sec-hdr" onclick="toggleSec(this)">
-            <span class="sec-title">Tone</span>
-            <span class="sec-arrow">▾</span>
+            <span class="sec-title">Tone</span><span class="sec-arrow">▾</span>
           </div>
           <div class="sec-body">
             <div class="ctrl">
@@ -604,8 +580,7 @@
         <!-- Color -->
         <div class="sec">
           <div class="sec-hdr" onclick="toggleSec(this)">
-            <span class="sec-title">Color</span>
-            <span class="sec-arrow">▾</span>
+            <span class="sec-title">Color</span><span class="sec-arrow">▾</span>
           </div>
           <div class="sec-body">
             <div class="ctrl">
@@ -639,8 +614,7 @@
         <!-- Channel Curves -->
         <div class="sec">
           <div class="sec-hdr" onclick="toggleSec(this)">
-            <span class="sec-title">Channel Curves</span>
-            <span class="sec-arrow">▾</span>
+            <span class="sec-title">Channel Curves</span><span class="sec-arrow">▾</span>
           </div>
           <div class="sec-body">
             <div class="ch-group ch-group-r">
@@ -703,8 +677,7 @@
         <!-- Finish -->
         <div class="sec">
           <div class="sec-hdr" onclick="toggleSec(this)">
-            <span class="sec-title">Finish</span>
-            <span class="sec-arrow">▾</span>
+            <span class="sec-title">Finish</span><span class="sec-arrow">▾</span>
           </div>
           <div class="sec-body">
             <div class="ctrl">
@@ -742,7 +715,8 @@
     <div class="progress-bar-track">
       <div class="progress-bar-fill" id="progress-fill"></div>
     </div>
-    <div class="progress-text" id="progress-text">Preparing…</div>
+    <div class="progress-count" id="progress-count">0 / 0</div>
+    <div class="progress-file"  id="progress-file">Preparing…</div>
   </div>
 </div>
 
@@ -752,31 +726,37 @@
 'use strict';
 
 // ════════════════════════════════════════════════════════════
-//  State
+//  Settings helpers
 // ════════════════════════════════════════════════════════════
-const S = {
-  baseR: 0.90, baseG: 0.70, baseB: 0.50,
-  exposure: 0, contrast: 0, highlights: 0, shadows: 0,
-  gamma: 1.0, blacks: 0, whites: 1.0,
-  saturation: 1.0, vibrance: 0, temperature: 0, tint: 0, hue: 0,
-  rGamma: 1.0, rLift: 0.0, rGain: 1.0,
-  gGamma: 1.0, gLift: 0.0, gGain: 1.0,
-  bGamma: 1.0, bLift: 0.0, bGain: 1.0,
-  clarity: 0, sharpness: 0, grain: 0, vignette: 0,
-};
+function defaultSettings() {
+  return {
+    baseR: 0.90, baseG: 0.70, baseB: 0.50,
+    exposure: 0, contrast: 0, highlights: 0, shadows: 0,
+    gamma: 1.0, blacks: 0, whites: 1.0,
+    saturation: 1.0, vibrance: 0, temperature: 0, tint: 0, hue: 0,
+    rGamma: 1.0, rLift: 0.0, rGain: 1.0,
+    gGamma: 1.0, gLift: 0.0, gGain: 1.0,
+    bGamma: 1.0, bLift: 0.0, bGain: 1.0,
+    clarity: 0, sharpness: 0, grain: 0, vignette: 0,
+  };
+}
 
-const DEFAULTS = Object.assign({}, S);
+// S = live slider state (what the UI shows)
+const S = defaultSettings();
 
-// ── Image queue ──────────────────────────────────────────
-// Each entry: { name, originalData, thumbUrl }
-let images     = [];
-let currentIdx = -1;
+// ════════════════════════════════════════════════════════════
+//  App state
+// ════════════════════════════════════════════════════════════
+// images[i] = { name, originalData, thumbUrl, width, height, settings }
+let images      = [];
+let currentIdx  = -1;
+let applyMode   = 'all';   // 'all' | 'one'
 
-let splitMode    = false;
-let splitPos     = 0.5;
+let splitMode     = false;
+let splitPos      = 0.5;
 let draggingSplit = false;
-let processTimer = null;
-let processing   = false;
+let processTimer  = null;
+let processing    = false;
 
 // ════════════════════════════════════════════════════════════
 //  DOM refs
@@ -788,8 +768,6 @@ const outCtx     = outCanvas.getContext('2d', { willReadFrequently: true });
 const befCtx     = befCanvas.getContext('2d');
 const histCanvas = $('hist-canvas');
 const histCtx    = histCanvas.getContext('2d');
-const dropZone   = $('drop-zone');
-const workspace  = $('workspace');
 
 // ════════════════════════════════════════════════════════════
 //  Slider wiring
@@ -810,6 +788,7 @@ SLIDERS.forEach(id => {
   el.addEventListener('input', () => {
     S[id] = parseFloat(el.value);
     vel.textContent = fmt(id, S[id]);
+    pushSettingsToImages(id, S[id]);
     scheduleProcess();
   });
 });
@@ -822,6 +801,22 @@ function fmt(id, v) {
   return v.toFixed(2);
 }
 
+// Write a single setting value to the appropriate images
+function pushSettingsToImages(key, val) {
+  if (applyMode === 'all') {
+    images.forEach(img => { img.settings[key] = val; });
+  } else if (currentIdx >= 0) {
+    images[currentIdx].settings[key] = val;
+  }
+  updateFilmstripDots();
+}
+
+// Write all of S into the appropriate images
+function pushAllSettingsToImages() {
+  SLIDERS.forEach(k => pushSettingsToImages(k, S[k]));
+}
+
+// Set a slider value, update S, update image settings
 function setSlider(id, v) {
   const el = $(id);
   if (!el) return;
@@ -829,6 +824,59 @@ function setSlider(id, v) {
   el.value = clamped;
   S[id] = clamped;
   $('v-' + id).textContent = fmt(id, clamped);
+  // Callers that call setSlider directly (presets, auto-detect, reset)
+  // then call pushAllSettingsToImages() themselves — do NOT push per key here
+  // to avoid N×M writes during batch updates.
+}
+
+// Load a settings object into S and all sliders (without pushing back to images)
+function loadSettingsIntoUI(settings) {
+  SLIDERS.forEach(k => {
+    const el = $(k), vel = $('v-' + k);
+    if (!el) return;
+    const v = settings[k];
+    const clamped = Math.max(parseFloat(el.min), Math.min(parseFloat(el.max), v));
+    el.value = clamped;
+    S[k] = clamped;
+    vel.textContent = fmt(k, clamped);
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  Apply mode toggle
+// ════════════════════════════════════════════════════════════
+function toggleApplyMode() {
+  applyMode = applyMode === 'all' ? 'one' : 'all';
+
+  if (applyMode === 'all') {
+    // Sync every image to the current UI settings
+    images.forEach(img => { img.settings = Object.assign({}, S); });
+    updateFilmstripDots();
+  }
+
+  const btn = $('apply-mode-btn');
+  if (applyMode === 'all') {
+    btn.classList.add('mode-all');
+    btn.innerHTML = '<span class="apply-dot"></span>Apply to all images';
+  } else {
+    btn.classList.remove('mode-all');
+    btn.innerHTML = '<span class="apply-dot"></span>Apply to this image only';
+  }
+}
+
+// Show amber dot on filmstrip items whose settings differ from S
+function updateFilmstripDots() {
+  if (applyMode === 'all') {
+    // All items share S, no dots needed
+    document.querySelectorAll('.film-item').forEach(el => el.classList.remove('has-custom'));
+    return;
+  }
+  document.querySelectorAll('.film-item[data-idx]').forEach(el => {
+    const idx = parseInt(el.dataset.idx, 10);
+    if (isNaN(idx) || !images[idx]) return;
+    const different = SLIDERS.some(k => Math.abs(images[idx].settings[k] - S[k]) > 0.0001);
+    el.classList.toggle('has-custom', different && idx !== currentIdx);
+  });
 }
 
 // ════════════════════════════════════════════════════════════
@@ -839,66 +887,53 @@ $('file-input').addEventListener('change', e => {
   e.target.value = '';
 });
 
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('drag-over');
+$('drop-zone').addEventListener('dragover', e => { e.preventDefault(); $('drop-zone').classList.add('drag-over'); });
+$('drop-zone').addEventListener('dragleave', () => $('drop-zone').classList.remove('drag-over'));
+$('drop-zone').addEventListener('drop', e => {
+  e.preventDefault(); $('drop-zone').classList.remove('drag-over');
   if (e.dataTransfer.files.length) loadFiles(e.dataTransfer.files);
 });
 
-// Workspace also accepts drops
-workspace.addEventListener('dragover', e => { e.preventDefault(); workspace.classList.add('drag-over'); });
-workspace.addEventListener('dragleave', () => workspace.classList.remove('drag-over'));
-workspace.addEventListener('drop', e => {
+$('workspace').addEventListener('dragover', e => { e.preventDefault(); });
+$('workspace').addEventListener('drop', e => {
   e.preventDefault();
-  workspace.classList.remove('drag-over');
   if (e.dataTransfer.files.length) loadFiles(e.dataTransfer.files);
 });
 
 function loadFiles(fileList) {
-  const files = Array.from(fileList).filter(f => f.type.startsWith('image/') || f.name.match(/\.(heic|heif)$/i));
+  const files = Array.from(fileList).filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
   if (!files.length) return;
 
   let loaded = 0;
+  const firstNewIdx = images.length;
+
   files.forEach(file => {
     const reader = new FileReader();
     reader.onload = ev => {
       const img = new Image();
       img.onload = () => {
         const w = img.naturalWidth, h = img.naturalHeight;
-
-        // Extract pixel data
         const tmpCanvas = document.createElement('canvas');
         tmpCanvas.width = w; tmpCanvas.height = h;
-        const tmpCtx = tmpCanvas.getContext('2d');
-        tmpCtx.drawImage(img, 0, 0);
-        const originalData = tmpCtx.getImageData(0, 0, w, h);
-
-        // Create thumbnail (max 80×60)
+        tmpCanvas.getContext('2d').drawImage(img, 0, 0);
+        const originalData = tmpCanvas.getContext('2d').getImageData(0, 0, w, h);
         const thumbUrl = makeThumb(img, 80, 60);
 
-        images.push({ name: file.name, originalData, thumbUrl, width: w, height: h });
+        // New image inherits current S as its starting settings
+        images.push({ name: file.name, originalData, thumbUrl, width: w, height: h, settings: Object.assign({}, S) });
 
         loaded++;
         if (loaded === files.length) {
-          // Show workspace on first batch
           if (currentIdx === -1) {
-            dropZone.style.display = 'none';
-            workspace.classList.add('active');
+            $('drop-zone').style.display = 'none';
+            $('workspace').classList.add('active');
           }
+          updateQueueUI();
           renderFilmstrip();
-          // Select first newly added image
-          selectImage(images.length - loaded);
+          selectImage(firstNewIdx);
         }
       };
-      img.onerror = () => {
-        loaded++;
-        if (loaded === files.length && images.length > 0) {
-          renderFilmstrip();
-          if (currentIdx === -1) selectImage(0);
-        }
-      };
+      img.onerror = () => { loaded++; };
       img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
@@ -908,8 +943,7 @@ function loadFiles(fileList) {
 function makeThumb(img, maxW, maxH) {
   const ratio = img.naturalWidth / img.naturalHeight;
   let tw = maxW, th = maxH;
-  if (ratio > maxW / maxH) th = maxW / ratio;
-  else                      tw = maxH * ratio;
+  if (ratio > maxW / maxH) th = maxW / ratio; else tw = maxH * ratio;
   const c = document.createElement('canvas');
   c.width = Math.round(tw); c.height = Math.round(th);
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
@@ -917,13 +951,25 @@ function makeThumb(img, maxW, maxH) {
 }
 
 // ════════════════════════════════════════════════════════════
+//  Queue UI (count badge + export button labels)
+// ════════════════════════════════════════════════════════════
+function updateQueueUI() {
+  const n = images.length;
+  const countEl = $('queue-count');
+  countEl.innerHTML = `<strong>${n}</strong> ${n === 1 ? 'photo' : 'photos'} loaded`;
+
+  $('export-btn').disabled = n === 0;
+  const allBtn = $('export-all-btn');
+  allBtn.disabled = n === 0;
+  allBtn.textContent = n > 0 ? `Export All (${n})` : 'Export All';
+}
+
+// ════════════════════════════════════════════════════════════
 //  Filmstrip
 // ════════════════════════════════════════════════════════════
 function renderFilmstrip() {
   const strip = $('filmstrip');
-  // Remove all film-items (keep the add button)
   strip.querySelectorAll('.film-item').forEach(el => el.remove());
-
   const addBtn = $('film-add-btn');
 
   images.forEach((img, idx) => {
@@ -939,31 +985,25 @@ function renderFilmstrip() {
     thumb.className = 'film-thumb';
     thumb.src = img.thumbUrl;
     thumb.draggable = false;
+
+    const dot = document.createElement('div');
+    dot.className = 'film-unique-dot';
+
     wrap.appendChild(thumb);
+    wrap.appendChild(dot);
 
     const label = document.createElement('div');
     label.className = 'film-name';
-    label.textContent = img.name.replace(/\.[^.]+$/, '');  // strip extension
+    label.textContent = img.name.replace(/\.[^.]+$/, '');
 
     item.appendChild(wrap);
     item.appendChild(label);
     item.addEventListener('click', () => selectImage(idx));
-
     strip.insertBefore(item, addBtn);
   });
 
-  // Update header buttons
-  $('export-btn').disabled = images.length === 0;
-  const allBtn = $('export-all-btn');
-  if (images.length > 1) {
-    allBtn.style.display = 'inline-block';
-    allBtn.disabled = false;
-    allBtn.textContent = `Export All (${images.length})`;
-  } else {
-    allBtn.style.display = 'none';
-  }
+  updateFilmstripDots();
 
-  // Scroll to show the current item
   setTimeout(() => {
     const active = strip.querySelector('.film-item.active');
     if (active) active.scrollIntoView({ block: 'nearest', inline: 'center' });
@@ -975,31 +1015,31 @@ function selectImage(idx) {
   currentIdx = idx;
 
   const img = images[idx];
-  const w = img.width, h = img.height;
 
-  outCanvas.width  = befCanvas.width  = w;
-  outCanvas.height = befCanvas.height = h;
+  outCanvas.width  = befCanvas.width  = img.width;
+  outCanvas.height = befCanvas.height = img.height;
 
-  // Draw original negative into before-canvas (for split view)
+  // Draw original into before-canvas for split view
   const tmp = document.createElement('canvas');
-  tmp.width = w; tmp.height = h;
+  tmp.width = img.width; tmp.height = img.height;
   tmp.getContext('2d').putImageData(img.originalData, 0, 0);
   befCtx.drawImage(tmp, 0, 0);
 
-  // Update info
-  $('image-info').style.display = 'inline';
-  $('image-info').textContent = `${img.name}  ·  ${w} × ${h}`;
+  // Load this image's settings into sliders (without writing back to images)
+  loadSettingsIntoUI(img.settings);
 
-  // Highlight active in strip
+  $('image-info').style.display = 'inline';
+  $('image-info').textContent = `${img.name}  ·  ${img.width} × ${img.height}`;
+
   $('filmstrip').querySelectorAll('.film-item').forEach((el, i) => {
     el.classList.toggle('active', i === idx);
   });
-
-  autoDetectBase();  // auto-detect for each selected image
+  updateFilmstripDots();
+  scheduleProcess();
 }
 
 // ════════════════════════════════════════════════════════════
-//  Processing pipeline
+//  Processing
 // ════════════════════════════════════════════════════════════
 function scheduleProcess() {
   if (processTimer) clearTimeout(processTimer);
@@ -1010,7 +1050,7 @@ function processImage() {
   if (currentIdx < 0 || processing) return;
   processing = true;
   setTimeout(() => {
-    const result = runPipeline(images[currentIdx].originalData);
+    const result = runPipeline(images[currentIdx].originalData, images[currentIdx].settings);
     outCtx.putImageData(result, 0, 0);
     updateSplitOverlay();
     drawHistogram(result.data);
@@ -1018,34 +1058,34 @@ function processImage() {
   }, 0);
 }
 
-// Pure pipeline: takes ImageData, returns new ImageData (does NOT touch the DOM)
-function runPipeline(srcData) {
+// Pure pipeline — takes ImageData + settings snapshot, returns new ImageData
+function runPipeline(srcData, cfg) {
   const w = srcData.width, h = srcData.height;
   const srcBuf = srcData.data;
 
-  const lutR = buildLUT('r');
-  const lutG = buildLUT('g');
-  const lutB = buildLUT('b');
+  const lutR = buildLUT('r', cfg);
+  const lutG = buildLUT('g', cfg);
+  const lutB = buildLUT('b', cfg);
 
-  const expFactor = Math.pow(2, S.exposure);
-  const conFactor = (S.contrast + 100) / 100;
-  const hlAmt     = S.highlights / 200;
-  const shAmt     = S.shadows    / 200;
-  const sat       = S.saturation;
-  const vib       = S.vibrance;
-  const tempR     =  S.temperature * 0.0008;
-  const tempB     = -S.temperature * 0.0008;
-  const tintG     = -S.tint        * 0.0005;
-  const doHue     = S.hue !== 0;
-  const hueRad    = S.hue * Math.PI / 180;
+  const expFactor = Math.pow(2, cfg.exposure);
+  const conFactor = (cfg.contrast + 100) / 100;
+  const hlAmt     = cfg.highlights / 200;
+  const shAmt     = cfg.shadows    / 200;
+  const sat       = cfg.saturation;
+  const vib       = cfg.vibrance;
+  const tempR     =  cfg.temperature * 0.0008;
+  const tempB     = -cfg.temperature * 0.0008;
+  const tintG     = -cfg.tint        * 0.0005;
+  const doHue     = cfg.hue !== 0;
+  const hueRad    = cfg.hue * Math.PI / 180;
   const cosH      = Math.cos(hueRad);
   const sinH      = Math.sin(hueRad);
-  const doVig     = S.vignette !== 0;
-  const vigAmt    = S.vignette;
+  const doVig     = cfg.vignette !== 0;
+  const vigAmt    = cfg.vignette;
   const cx        = w * 0.5, cy = h * 0.5;
   const maxDist   = Math.sqrt(cx*cx + cy*cy);
-  const doGrain   = S.grain > 0;
-  const grainAmt  = S.grain / 255;
+  const doGrain   = cfg.grain > 0;
+  const grainAmt  = cfg.grain / 255;
 
   const dst    = new ImageData(w, h);
   const dstBuf = dst.data;
@@ -1058,61 +1098,39 @@ function runPipeline(srcData) {
       let g = lutG[srcBuf[i + 1]] / 255;
       let b = lutB[srcBuf[i + 2]] / 255;
 
-      r *= expFactor;
-      g *= expFactor;
-      b *= expFactor;
+      r *= expFactor; g *= expFactor; b *= expFactor;
 
-      if (hlAmt !== 0) {
-        r = toneBend(r, 0.5, 1.0, hlAmt);
-        g = toneBend(g, 0.5, 1.0, hlAmt);
-        b = toneBend(b, 0.5, 1.0, hlAmt);
-      }
-      if (shAmt !== 0) {
-        r = toneBend(r, 0.0, 0.5, shAmt);
-        g = toneBend(g, 0.0, 0.5, shAmt);
-        b = toneBend(b, 0.0, 0.5, shAmt);
-      }
+      if (hlAmt !== 0) { r = toneBend(r,0.5,1.0,hlAmt); g = toneBend(g,0.5,1.0,hlAmt); b = toneBend(b,0.5,1.0,hlAmt); }
+      if (shAmt !== 0) { r = toneBend(r,0.0,0.5,shAmt); g = toneBend(g,0.0,0.5,shAmt); b = toneBend(b,0.0,0.5,shAmt); }
 
-      if (S.contrast !== 0) {
-        r = (r - 0.5) * conFactor + 0.5;
-        g = (g - 0.5) * conFactor + 0.5;
-        b = (b - 0.5) * conFactor + 0.5;
+      if (cfg.contrast !== 0) {
+        r = (r-0.5)*conFactor+0.5; g = (g-0.5)*conFactor+0.5; b = (b-0.5)*conFactor+0.5;
       }
 
       r += tempR; b += tempB; g += tintG;
 
       if (sat !== 1.0) {
         const l = 0.2126*r + 0.7152*g + 0.0722*b;
-        r = l + (r - l) * sat;
-        g = l + (g - l) * sat;
-        b = l + (b - l) * sat;
+        r = l+(r-l)*sat; g = l+(g-l)*sat; b = l+(b-l)*sat;
       }
 
       if (vib !== 0) {
         const l = 0.2126*r + 0.7152*g + 0.0722*b;
-        const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-        const vf = 1 + vib * (1 - chroma);
-        r = l + (r - l) * vf;
-        g = l + (g - l) * vf;
-        b = l + (b - l) * vf;
+        const vf = 1 + vib*(1-(Math.max(r,g,b)-Math.min(r,g,b)));
+        r = l+(r-l)*vf; g = l+(g-l)*vf; b = l+(b-l)*vf;
       }
 
       if (doHue) {
-        const l  = 0.2126*r + 0.7152*g + 0.0722*b;
-        const cr = r - l, cb = b - l;
-        r = l + cr*cosH - cb*sinH;
-        b = l + cb*cosH + cr*sinH;
+        const l = 0.2126*r + 0.7152*g + 0.0722*b;
+        const cr = r-l, cb = b-l;
+        r = l+cr*cosH-cb*sinH; b = l+cb*cosH+cr*sinH;
       }
 
-      if (doGrain) {
-        const noise = (Math.random() - 0.5) * grainAmt;
-        r += noise; g += noise; b += noise;
-      }
+      if (doGrain) { const n=(Math.random()-0.5)*grainAmt; r+=n; g+=n; b+=n; }
 
       if (doVig) {
-        const dx = (x - cx) / maxDist, dy = (y - cy) / maxDist;
-        const vig = 1 + vigAmt * (dx*dx + dy*dy);
-        r *= vig; g *= vig; b *= vig;
+        const dx=(x-cx)/maxDist, dy=(y-cy)/maxDist;
+        const vg=1+vigAmt*(dx*dx+dy*dy); r*=vg; g*=vg; b*=vg;
       }
 
       dstBuf[i    ] = clamp255(r);
@@ -1122,109 +1140,102 @@ function runPipeline(srcData) {
     }
   }
 
-  if (S.clarity !== 0 || S.sharpness > 0) return applyUnsharp(dst, w, h);
-  return dst;
+  return (cfg.clarity !== 0 || cfg.sharpness > 0) ? applyUnsharp(dst, w, h, cfg) : dst;
 }
 
 function toneBend(v, lo, hi, amount) {
   if (v < lo || v > hi) return v;
-  return v + amount * Math.sin(((v - lo) / (hi - lo)) * Math.PI);
+  return v + amount * Math.sin(((v-lo)/(hi-lo)) * Math.PI);
 }
 
 // ════════════════════════════════════════════════════════════
-//  Per-channel LUT
+//  Per-channel LUT (takes explicit settings)
 // ════════════════════════════════════════════════════════════
-function buildLUT(ch) {
+function buildLUT(ch, cfg) {
   const Ch    = ch.toUpperCase();
-  const base  = S['base'  + Ch];
-  const chGam = S[ch      + 'Gamma'];
-  const lift  = S[ch      + 'Lift'];
-  const gain  = S[ch      + 'Gain'];
-  const gGam  = S.gamma;
-  const bl    = S.blacks;
-  const wh    = S.whites;
+  const base  = cfg['base'  + Ch];
+  const chGam = cfg[ch      + 'Gamma'];
+  const lift  = cfg[ch      + 'Lift'];
+  const gain  = cfg[ch      + 'Gain'];
+  const gGam  = cfg.gamma;
+  const bl    = cfg.blacks;
+  const wh    = cfg.whites;
 
   const lut = new Uint8Array(256);
   for (let i = 0; i < 256; i++) {
     let v = i / 255;
-    v = Math.min(1, v / base);          // normalise by film base
-    v = 1 - v;                          // invert
-    if (chGam !== 1.0 && v > 0) v = Math.pow(v, 1 / chGam);
+    v = Math.min(1, v / base);
+    v = 1 - v;
+    if (chGam !== 1.0 && v > 0) v = Math.pow(v, 1/chGam);
     v += lift;
     v *= gain;
-    if (gGam  !== 1.0 && v > 0) v = Math.pow(v, 1 / gGam);
-    v = (v - bl) / (wh - bl);          // levels
+    if (gGam  !== 1.0 && v > 0) v = Math.pow(v, 1/gGam);
+    v = (v - bl) / (wh - bl);
     lut[i] = clamp255(v);
   }
   return lut;
 }
 
-function clamp255(v) { return v <= 0 ? 0 : v >= 1 ? 255 : (v * 255 + 0.5) | 0; }
+function clamp255(v) { return v<=0?0:v>=1?255:(v*255+0.5)|0; }
 
 // ════════════════════════════════════════════════════════════
 //  Unsharp / Clarity
 // ════════════════════════════════════════════════════════════
-function applyUnsharp(imgData, w, h) {
-  const sharpen = S.sharpness;
-  const clarity = S.clarity;
-  const src = imgData.data;
-  const blurR1  = blur3x3(src, w, h);
-  const blurR8  = blur3x3(blur3x3(blurR1, w, h), w, h);
-  const out  = new ImageData(w, h);
-  const dst  = out.data;
+function applyUnsharp(imgData, w, h, cfg) {
+  const src   = imgData.data;
+  const blr1  = blur3x3(src, w, h);
+  const blr8  = blur3x3(blur3x3(blr1, w, h), w, h);
+  const out   = new ImageData(w, h);
+  const dst   = out.data;
+  const sh    = cfg.sharpness, cl = cfg.clarity;
   for (let i = 0; i < src.length; i += 4) {
     for (let c = 0; c < 3; c++) {
-      const o = src[i + c];
-      const s = o + sharpen * (o - blurR1[i + c]);
-      dst[i + c] = Math.max(0, Math.min(255, (s + clarity * (s - blurR8[i + c])) | 0));
+      const o = src[i+c];
+      const s = o + sh*(o-blr1[i+c]);
+      dst[i+c] = Math.max(0, Math.min(255, (s + cl*(s-blr8[i+c]))|0));
     }
-    dst[i + 3] = src[i + 3];
+    dst[i+3] = src[i+3];
   }
   return out;
 }
 
 function blur3x3(data, w, h) {
   const out = new Uint8Array(data.length);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      for (let c = 0; c < 3; c++) {
-        let sum = 0, cnt = 0;
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            const nx = x + dx, ny = y + dy;
-            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
-              sum += data[(ny * w + nx) * 4 + c]; cnt++;
-            }
-          }
-        }
-        out[i + c] = (sum / cnt) | 0;
+  for (let y=0;y<h;y++) for (let x=0;x<w;x++) {
+    const i=(y*w+x)*4;
+    for (let c=0;c<3;c++) {
+      let sum=0,cnt=0;
+      for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++) {
+        const nx=x+dx,ny=y+dy;
+        if (nx>=0&&nx<w&&ny>=0&&ny<h){sum+=data[(ny*w+nx)*4+c];cnt++;}
       }
-      out[i + 3] = data[i + 3];
+      out[i+c]=(sum/cnt)|0;
     }
+    out[i+3]=data[i+3];
   }
   return out;
 }
 
 // ════════════════════════════════════════════════════════════
-//  Auto detection
+//  Auto detection (auto-base + auto-levels)
 // ════════════════════════════════════════════════════════════
 function autoDetectBase() {
   if (currentIdx < 0) return;
   const data = images[currentIdx].originalData.data;
   const len  = data.length;
   const rH = new Uint32Array(256), gH = new Uint32Array(256), bH = new Uint32Array(256);
-  for (let i = 0; i < len; i += 4) { rH[data[i]]++; gH[data[i+1]]++; bH[data[i+2]]++; }
-  const thresh = (len / 4) * 0.01;
-  setSlider('baseR', percentilePeak(rH, thresh) / 255);
-  setSlider('baseG', percentilePeak(gH, thresh) / 255);
-  setSlider('baseB', percentilePeak(bH, thresh) / 255);
+  for (let i=0;i<len;i+=4){rH[data[i]]++;gH[data[i+1]]++;bH[data[i+2]]++;}
+  const thresh = (len/4)*0.01;
+  setSlider('baseR', percentilePeak(rH,thresh)/255);
+  setSlider('baseG', percentilePeak(gH,thresh)/255);
+  setSlider('baseB', percentilePeak(bH,thresh)/255);
+  pushAllSettingsToImages();
   scheduleProcess();
 }
 
 function percentilePeak(hist, thresh) {
-  let cum = 0;
-  for (let i = 255; i >= 0; i--) { cum += hist[i]; if (cum >= thresh) return Math.max(1, i); }
+  let cum=0;
+  for (let i=255;i>=0;i--){cum+=hist[i];if(cum>=thresh)return Math.max(1,i);}
   return 1;
 }
 
@@ -1234,16 +1245,16 @@ function autoLevels() {
   setTimeout(() => {
     const pixels = outCtx.getImageData(0, 0, outCanvas.width, outCanvas.height).data;
     const lH = new Uint32Array(256);
-    for (let i = 0; i < pixels.length; i += 4) {
-      lH[(0.299*pixels[i] + 0.587*pixels[i+1] + 0.114*pixels[i+2]) | 0]++;
-    }
-    const clipN = (outCanvas.width * outCanvas.height) * 0.001;
-    let black = 0, white = 255, cum = 0;
-    for (let i = 0; i < 256; i++) { cum += lH[i]; if (cum > clipN) { black = i; break; } }
-    cum = 0;
-    for (let i = 255; i >= 0; i--) { cum += lH[i]; if (cum > clipN) { white = i; break; } }
-    setSlider('blacks', black / 255);
-    setSlider('whites', white / 255);
+    for (let i=0;i<pixels.length;i+=4)
+      lH[(0.299*pixels[i]+0.587*pixels[i+1]+0.114*pixels[i+2])|0]++;
+    const clipN = outCanvas.width*outCanvas.height*0.001;
+    let black=0,white=255,cum=0;
+    for (let i=0;i<256;i++){cum+=lH[i];if(cum>clipN){black=i;break;}}
+    cum=0;
+    for (let i=255;i>=0;i--){cum+=lH[i];if(cum>clipN){white=i;break;}}
+    setSlider('blacks', black/255);
+    setSlider('whites', white/255);
+    pushAllSettingsToImages();
     scheduleProcess();
   }, 80);
 }
@@ -1252,34 +1263,27 @@ function autoLevels() {
 //  Histogram
 // ════════════════════════════════════════════════════════════
 function drawHistogram(pixels) {
-  const rH = new Float32Array(256), gH = new Float32Array(256),
-        bH = new Float32Array(256), lH = new Float32Array(256);
-  for (let i = 0; i < pixels.length; i += 4) {
-    rH[pixels[i]]++; gH[pixels[i+1]]++; bH[pixels[i+2]]++;
-    lH[(0.299*pixels[i] + 0.587*pixels[i+1] + 0.114*pixels[i+2]) | 0]++;
+  const rH=new Float32Array(256),gH=new Float32Array(256),bH=new Float32Array(256),lH=new Float32Array(256);
+  for (let i=0;i<pixels.length;i+=4){
+    rH[pixels[i]]++;gH[pixels[i+1]]++;bH[pixels[i+2]]++;
+    lH[(0.299*pixels[i]+0.587*pixels[i+1]+0.114*pixels[i+2])|0]++;
   }
-  let peak = 1;
-  for (let i = 0; i < 256; i++) {
-    if (rH[i] > peak) peak = rH[i]; if (gH[i] > peak) peak = gH[i]; if (bH[i] > peak) peak = bH[i];
-  }
-  const cw = histCanvas.width, ch = histCanvas.height;
-  histCtx.fillStyle = '#0a0a0a'; histCtx.fillRect(0, 0, cw, ch);
-  histCtx.strokeStyle = 'rgba(255,255,255,0.04)'; histCtx.lineWidth = 1;
-  for (const x of [0.25, 0.5, 0.75]) {
-    histCtx.beginPath(); histCtx.moveTo(x*cw, 0); histCtx.lineTo(x*cw, ch); histCtx.stroke();
-  }
-  histCurve(lH, peak, cw, ch, 'rgba(255,255,255,0.18)');
-  histCurve(rH, peak, cw, ch, 'rgba(217,96,96,0.55)');
-  histCurve(gH, peak, cw, ch, 'rgba(96,200,112,0.55)');
-  histCurve(bH, peak, cw, ch, 'rgba(96,144,216,0.55)');
+  let peak=1;
+  for (let i=0;i<256;i++){if(rH[i]>peak)peak=rH[i];if(gH[i]>peak)peak=gH[i];if(bH[i]>peak)peak=bH[i];}
+  const cw=histCanvas.width,ch=histCanvas.height;
+  histCtx.fillStyle='#0a0a0a';histCtx.fillRect(0,0,cw,ch);
+  histCtx.strokeStyle='rgba(255,255,255,0.04)';histCtx.lineWidth=1;
+  for (const x of [0.25,0.5,0.75]){histCtx.beginPath();histCtx.moveTo(x*cw,0);histCtx.lineTo(x*cw,ch);histCtx.stroke();}
+  histCurve(lH,peak,cw,ch,'rgba(255,255,255,0.18)');
+  histCurve(rH,peak,cw,ch,'rgba(217,96,96,0.55)');
+  histCurve(gH,peak,cw,ch,'rgba(96,200,112,0.55)');
+  histCurve(bH,peak,cw,ch,'rgba(96,144,216,0.55)');
 }
 
-function histCurve(bins, peak, cw, ch, color) {
-  histCtx.fillStyle = color;
-  histCtx.beginPath(); histCtx.moveTo(0, ch);
-  for (let i = 0; i < 256; i++)
-    histCtx.lineTo((i/255)*cw, ch - Math.sqrt(bins[i]/peak)*ch);
-  histCtx.lineTo(cw, ch); histCtx.closePath(); histCtx.fill();
+function histCurve(bins,peak,cw,ch,color){
+  histCtx.fillStyle=color;histCtx.beginPath();histCtx.moveTo(0,ch);
+  for(let i=0;i<256;i++)histCtx.lineTo((i/255)*cw,ch-Math.sqrt(bins[i]/peak)*ch);
+  histCtx.lineTo(cw,ch);histCtx.closePath();histCtx.fill();
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1288,53 +1292,54 @@ function histCurve(bins, peak, cw, ch, color) {
 function toggleSplit() {
   splitMode = !splitMode;
   $('split-btn').classList.toggle('active', splitMode);
-  $('split-handle').style.display = splitMode ? 'block' : 'none';
-  $('lbl-before').style.display   = splitMode ? 'block' : 'none';
-  $('lbl-after').style.display    = splitMode ? 'block' : 'none';
-  befCanvas.style.display         = splitMode ? 'block' : 'none';
+  $('split-handle').style.display = splitMode?'block':'none';
+  $('lbl-before').style.display   = splitMode?'block':'none';
+  $('lbl-after').style.display    = splitMode?'block':'none';
+  befCanvas.style.display         = splitMode?'block':'none';
   updateSplitOverlay();
 }
 
 function updateSplitOverlay() {
   if (!splitMode) return;
-  const pct = splitPos * 100;
-  befCanvas.style.clipPath     = `inset(0 ${(100 - pct).toFixed(2)}% 0 0)`;
-  $('split-handle').style.left = pct + '%';
+  const pct = splitPos*100;
+  befCanvas.style.clipPath    = `inset(0 ${(100-pct).toFixed(2)}% 0 0)`;
+  $('split-handle').style.left = pct+'%';
 }
 
-$('split-handle').addEventListener('mousedown', e => { draggingSplit = true; e.preventDefault(); });
-document.addEventListener('mousemove', e => {
-  if (!draggingSplit) return;
-  const r = outCanvas.getBoundingClientRect();
-  splitPos = Math.max(0.02, Math.min(0.98, (e.clientX - r.left) / r.width));
+$('split-handle').addEventListener('mousedown', e=>{draggingSplit=true;e.preventDefault();});
+document.addEventListener('mousemove', e=>{
+  if(!draggingSplit)return;
+  const r=outCanvas.getBoundingClientRect();
+  splitPos=Math.max(0.02,Math.min(0.98,(e.clientX-r.left)/r.width));
   updateSplitOverlay();
 });
-document.addEventListener('mouseup', () => { draggingSplit = false; });
+document.addEventListener('mouseup',()=>{draggingSplit=false;});
 
-$('split-handle').addEventListener('touchstart', e => { draggingSplit = true; e.preventDefault(); }, { passive: false });
-document.addEventListener('touchmove', e => {
-  if (!draggingSplit) return;
-  const r = outCanvas.getBoundingClientRect();
-  splitPos = Math.max(0.02, Math.min(0.98, (e.touches[0].clientX - r.left) / r.width));
+$('split-handle').addEventListener('touchstart',e=>{draggingSplit=true;e.preventDefault();},{passive:false});
+document.addEventListener('touchmove',e=>{
+  if(!draggingSplit)return;
+  const r=outCanvas.getBoundingClientRect();
+  splitPos=Math.max(0.02,Math.min(0.98,(e.touches[0].clientX-r.left)/r.width));
   updateSplitOverlay();
-}, { passive: true });
-document.addEventListener('touchend', () => { draggingSplit = false; });
+},{passive:true});
+document.addEventListener('touchend',()=>{draggingSplit=false;});
 
 // ════════════════════════════════════════════════════════════
 //  Presets
 // ════════════════════════════════════════════════════════════
 const PRESETS = {
-  c41:       { baseR:0.88,baseG:0.66,baseB:0.44, gamma:1.0,contrast:12,exposure:0.10,highlights:-10,shadows:8, saturation:1.08,vibrance:0.10,temperature:8,  tint:0,  rGamma:1.00,gGamma:1.05,bGamma:0.95,rGain:1.00,gGain:1.00,bGain:1.00 },
-  kodakgold: { baseR:0.93,baseG:0.70,baseB:0.47, gamma:1.05,contrast:8,exposure:0.15,highlights:-5, shadows:5, saturation:1.05,vibrance:0.12,temperature:20, tint:4,  rGamma:1.06,gGamma:1.00,bGamma:0.92,rGain:1.04,gGain:1.00,bGain:0.96 },
-  fuji:      { baseR:0.83,baseG:0.63,baseB:0.43, gamma:0.98,contrast:14,exposure:0.05,highlights:-8, shadows:6, saturation:1.12,vibrance:0.15,temperature:-6, tint:-4, rGamma:0.96,gGamma:1.00,bGamma:1.04,rGain:0.97,gGain:1.00,bGain:1.03 },
-  portra:    { baseR:0.86,baseG:0.65,baseB:0.43, gamma:1.02,contrast:6, exposure:0.10,highlights:-12,shadows:10,saturation:0.95,vibrance:0.18,temperature:12, tint:2,  rGamma:1.03,gGamma:1.01,bGamma:0.97,rGain:1.02,gGain:1.00,bGain:0.98 },
-  bw:        { baseR:0.85,baseG:0.85,baseB:0.85, gamma:1.0, contrast:18,exposure:0.05,highlights:-5, shadows:5, saturation:0.00,vibrance:0.00,temperature:0,  tint:0,  rGamma:1.00,gGamma:1.00,bGamma:1.00,rGain:1.00,gGain:1.00,bGain:1.00 },
-  neutral:   { baseR:1.00,baseG:1.00,baseB:1.00, gamma:1.0, contrast:0, exposure:0,   highlights:0,  shadows:0, saturation:1.00,vibrance:0.00,temperature:0,  tint:0,  rGamma:1.00,gGamma:1.00,bGamma:1.00,rGain:1.00,gGain:1.00,bGain:1.00 },
+  c41:       {baseR:0.88,baseG:0.66,baseB:0.44,gamma:1.0, contrast:12,exposure:0.10,highlights:-10,shadows:8, saturation:1.08,vibrance:0.10,temperature:8, tint:0, rGamma:1.00,gGamma:1.05,bGamma:0.95,rGain:1.00,gGain:1.00,bGain:1.00},
+  kodakgold: {baseR:0.93,baseG:0.70,baseB:0.47,gamma:1.05,contrast:8, exposure:0.15,highlights:-5, shadows:5, saturation:1.05,vibrance:0.12,temperature:20,tint:4, rGamma:1.06,gGamma:1.00,bGamma:0.92,rGain:1.04,gGain:1.00,bGain:0.96},
+  fuji:      {baseR:0.83,baseG:0.63,baseB:0.43,gamma:0.98,contrast:14,exposure:0.05,highlights:-8, shadows:6, saturation:1.12,vibrance:0.15,temperature:-6,tint:-4,rGamma:0.96,gGamma:1.00,bGamma:1.04,rGain:0.97,gGain:1.00,bGain:1.03},
+  portra:    {baseR:0.86,baseG:0.65,baseB:0.43,gamma:1.02,contrast:6, exposure:0.10,highlights:-12,shadows:10,saturation:0.95,vibrance:0.18,temperature:12,tint:2, rGamma:1.03,gGamma:1.01,bGamma:0.97,rGain:1.02,gGain:1.00,bGain:0.98},
+  bw:        {baseR:0.85,baseG:0.85,baseB:0.85,gamma:1.0, contrast:18,exposure:0.05,highlights:-5, shadows:5, saturation:0.00,vibrance:0.00,temperature:0, tint:0, rGamma:1.00,gGamma:1.00,bGamma:1.00,rGain:1.00,gGain:1.00,bGain:1.00},
+  neutral:   {baseR:1.00,baseG:1.00,baseB:1.00,gamma:1.0, contrast:0, exposure:0,   highlights:0,  shadows:0, saturation:1.00,vibrance:0.00,temperature:0, tint:0, rGamma:1.00,gGamma:1.00,bGamma:1.00,rGain:1.00,gGain:1.00,bGain:1.00},
 };
 
 function applyPreset(name) {
-  const p = PRESETS[name]; if (!p) return;
+  const p = PRESETS[name]; if(!p) return;
   Object.keys(p).forEach(k => setSlider(k, p[k]));
+  pushAllSettingsToImages();
   scheduleProcess();
 }
 
@@ -1342,7 +1347,9 @@ function applyPreset(name) {
 //  Reset
 // ════════════════════════════════════════════════════════════
 function resetAll() {
-  SLIDERS.forEach(k => setSlider(k, DEFAULTS[k]));
+  const d = defaultSettings();
+  SLIDERS.forEach(k => setSlider(k, d[k]));
+  pushAllSettingsToImages();
   scheduleProcess();
 }
 
@@ -1352,44 +1359,47 @@ function resetAll() {
 function toggleSec(hdr) { hdr.closest('.sec').classList.toggle('collapsed'); }
 
 // ════════════════════════════════════════════════════════════
-//  Export – single image
+//  Export – single
 // ════════════════════════════════════════════════════════════
 function exportCurrent() {
   if (currentIdx < 0) return;
-  const name = images[currentIdx].name.replace(/\.[^.]+$/, '') + '_positive.jpg';
   const a = document.createElement('a');
-  a.href = outCanvas.toDataURL('image/jpeg', 0.95);
-  a.download = name;
+  a.href     = outCanvas.toDataURL('image/jpeg', 0.95);
+  a.download = images[currentIdx].name.replace(/\.[^.]+$/, '') + '_positive.jpg';
   a.click();
 }
 
 // ════════════════════════════════════════════════════════════
-//  Export All – bulk ZIP download
+//  Export All – bulk ZIP
 // ════════════════════════════════════════════════════════════
 async function exportAll() {
   if (images.length === 0) return;
 
   const modal    = $('progress-modal');
   const fillEl   = $('progress-fill');
-  const textEl   = $('progress-text');
+  const countEl  = $('progress-count');
+  const fileEl   = $('progress-file');
+  const total    = images.length;
   modal.classList.add('show');
 
   const zip = new JSZip();
 
-  for (let i = 0; i < images.length; i++) {
-    textEl.textContent = `Processing ${i + 1} of ${images.length}  —  ${images[i].name}`;
-    fillEl.style.width = ((i / images.length) * 90).toFixed(1) + '%';
+  for (let i = 0; i < total; i++) {
+    const pct = i / total;
+    fillEl.style.width = (pct * 90).toFixed(1) + '%';
+    countEl.textContent = `${i + 1} of ${total}`;
+    fileEl.textContent  = images[i].name;
 
-    // Yield to allow the UI to repaint
-    await new Promise(r => setTimeout(r, 0));
+    await new Promise(r => setTimeout(r, 0));  // yield to repaint
 
-    const result = runPipeline(images[i].originalData);
+    const result = runPipeline(images[i].originalData, images[i].settings);
     const blob   = await imageDataToBlob(result, 0.95);
     zip.file(images[i].name.replace(/\.[^.]+$/, '') + '_positive.jpg', blob);
   }
 
-  textEl.textContent = 'Generating ZIP…';
-  fillEl.style.width = '95%';
+  countEl.textContent = `${total} of ${total}`;
+  fileEl.textContent  = 'Generating ZIP…';
+  fillEl.style.width  = '95%';
   await new Promise(r => setTimeout(r, 0));
 
   const content = await zip.generateAsync({ type: 'blob' }, meta => {
@@ -1416,12 +1426,13 @@ function imageDataToBlob(imageData, quality) {
 }
 
 // ════════════════════════════════════════════════════════════
-//  Init
+//  Init slider display values
 // ════════════════════════════════════════════════════════════
 SLIDERS.forEach(id => {
   const vel = $('v-' + id);
   if (vel) vel.textContent = fmt(id, S[id]);
 });
+updateQueueUI();
 </script>
 </body>
 </html>
