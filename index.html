@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Darkroom — Film Negative Converter</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0c0c0c;
+      --surface: #161616;
+      --surface2: #1f1f1f;
+      --surface3: #2a2a2a;
+      --border: #303030;
+      --border2: #252525;
+      --text: #d8d8d8;
+      --muted: #5a5a5a;
+      --muted2: #888;
+      --accent: #c9a96e;
+      --accent-dim: #7a5f2a;
+      --accent-bg: rgba(201,169,110,0.08);
+      --red: #d96060;
+      --green: #60c870;
+      --blue: #6090d8;
+      --r-bg: rgba(217,96,96,0.12);
+      --g-bg: rgba(96,200,112,0.12);
+      --b-bg: rgba(96,144,216,0.12);
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+      font-size: 12px;
+      line-height: 1.4;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .logo-circle {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #e8c07a 0%, #7a4d0a 60%, #2a1500 100%);
+      flex-shrink: 0;
+    }
+
+    .app-name {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+    }
+
+    .app-sub {
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    .header-sep { flex: 1; }
+
+    #image-info {
+      font-size: 10px;
+      color: var(--muted);
+      display: none;
+    }
+
+    .hdr-btn {
+      padding: 5px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .hdr-btn:hover { background: var(--surface3); }
+
+    .hdr-btn-primary {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: #f0d8a8;
+    }
+    .hdr-btn-primary:hover { background: var(--accent); color: #1a0a00; }
+    .hdr-btn-primary:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    /* ── Layout body ─────────────────────────────────────── */
+    #body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Drop zone ───────────────────────────────────────── */
+    #drop-zone {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      border: 1.5px dashed var(--border);
+      margin: 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: border-color 0.18s, background 0.18s;
+      user-select: none;
+    }
+    #drop-zone:hover, #drop-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-bg);
+    }
+
+    .dz-icon { opacity: 0.25; }
+
+    .dz-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .dz-sub {
+      font-size: 11px;
+      color: var(--muted2);
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    .dz-btn {
+      padding: 8px 20px;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      border-radius: 5px;
+      color: #f0d8a8;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .dz-btn:hover { background: var(--accent); color: #1a0a00; }
+
+    /* ── Workspace ───────────────────────────────────────── */
+    #workspace {
+      display: none;
+      flex: 1;
+      overflow: hidden;
+    }
+    #workspace.active { display: flex; }
+
+    /* ── Preview area ────────────────────────────────────── */
+    #preview-area {
+      flex: 1;
+      background: #050505;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+      min-width: 0;
+    }
+
+    #canvas-wrap {
+      position: relative;
+      line-height: 0;
+      max-width: 100%;
+      max-height: calc(100vh - 44px);
+    }
+
+    #output-canvas {
+      display: block;
+      max-width: 100%;
+      max-height: calc(100vh - 44px);
+      object-fit: contain;
+    }
+
+    #before-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: none;
+      pointer-events: none;
+    }
+
+    #split-handle {
+      position: absolute;
+      top: 0;
+      width: 2px;
+      height: 100%;
+      background: var(--accent);
+      cursor: ew-resize;
+      display: none;
+      z-index: 5;
+    }
+    #split-handle::after {
+      content: '◀ ▶';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--accent);
+      color: #1a0a00;
+      font-size: 9px;
+      padding: 4px 5px;
+      border-radius: 10px;
+      white-space: nowrap;
+      letter-spacing: 2px;
+    }
+
+    .view-label {
+      position: absolute;
+      top: 10px;
+      background: rgba(0,0,0,0.7);
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      color: var(--muted2);
+      display: none;
+      pointer-events: none;
+      z-index: 6;
+      letter-spacing: 0.08em;
+    }
+    #lbl-before { left: 10px; }
+    #lbl-after  { right: 10px; }
+
+    /* ── Sidebar ─────────────────────────────────────────── */
+    #sidebar {
+      width: 272px;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    /* Histogram */
+    #hist-wrap {
+      padding: 10px 12px 8px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    #hist-canvas {
+      width: 100%;
+      height: 56px;
+      display: block;
+      border-radius: 3px;
+    }
+
+    /* Toolbar */
+    #toolbar {
+      display: flex;
+      gap: 5px;
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+      flex-wrap: wrap;
+    }
+
+    .tb-btn {
+      padding: 4px 9px;
+      background: var(--surface3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 10px;
+      transition: background 0.1s, border-color 0.1s;
+      letter-spacing: 0.03em;
+    }
+    .tb-btn:hover { background: #383838; border-color: var(--muted); }
+    .tb-btn.active { background: var(--accent-dim); border-color: var(--accent); color: #f0d8a8; }
+    .tb-sep { flex: 1; }
+
+    /* Scroll area */
+    #controls {
+      flex: 1;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+    #controls::-webkit-scrollbar { width: 5px; }
+    #controls::-webkit-scrollbar-track { background: transparent; }
+    #controls::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Sections */
+    .sec {
+      border-bottom: 1px solid var(--border2);
+    }
+
+    .sec-hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .sec-hdr:hover { background: var(--surface2); }
+
+    .sec-title {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted2);
+    }
+
+    .sec-arrow {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1;
+      transition: transform 0.15s;
+    }
+    .sec.collapsed .sec-arrow { transform: rotate(-90deg); }
+
+    .sec-body {
+      padding: 4px 12px 12px;
+    }
+    .sec.collapsed .sec-body { display: none; }
+
+    /* Control rows */
+    .ctrl {
+      display: grid;
+      grid-template-columns: minmax(0,1fr) 140px 38px;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .ctrl:last-child { margin-bottom: 0; }
+
+    .ctrl-lbl {
+      font-size: 10px;
+      color: var(--muted2);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ctrl-val {
+      font-size: 10px;
+      color: var(--text);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.02em;
+    }
+
+    /* Range inputs */
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 3px;
+      background: var(--surface3);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 11px; height: 11px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 0 2px var(--bg);
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 11px; height: 11px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: none;
+    }
+    .sr::-webkit-slider-thumb { background: var(--red); }
+    .sg::-webkit-slider-thumb { background: var(--green); }
+    .sb::-webkit-slider-thumb { background: var(--blue); }
+    .sr::-moz-range-thumb { background: var(--red); }
+    .sg::-moz-range-thumb { background: var(--green); }
+    .sb::-moz-range-thumb { background: var(--blue); }
+
+    /* Channel groups */
+    .ch-group {
+      padding: 8px 9px;
+      border-radius: 5px;
+      margin-bottom: 8px;
+    }
+    .ch-group:last-child { margin-bottom: 0; }
+    .ch-group-r { background: var(--r-bg); }
+    .ch-group-g { background: var(--g-bg); }
+    .ch-group-b { background: var(--b-bg); }
+
+    .ch-group-title {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 7px;
+    }
+    .ch-group-r .ch-group-title { color: var(--red); }
+    .ch-group-g .ch-group-title { color: var(--green); }
+    .ch-group-b .ch-group-title { color: var(--blue); }
+
+    /* Preset grid */
+    .preset-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+    }
+
+    .preset-btn {
+      padding: 7px 5px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 11px;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.1s, border-color 0.12s;
+    }
+    .preset-btn:hover {
+      background: var(--surface3);
+      border-color: var(--accent-dim);
+    }
+    .preset-btn .pname { font-weight: 600; display: block; }
+    .preset-btn .psub  { font-size: 9px; color: var(--muted); display: block; margin-top: 2px; }
+
+    /* Loading overlay */
+    #loading {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      font-size: 13px;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+    }
+    #loading.show { display: flex; }
+
+    input[type=file] { display: none; }
+
+    /* Scrollbar for Firefox */
+    * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-circle"></div>
+  <span class="app-name">DARKROOM</span>
+  <span class="app-sub">Film Negative Converter</span>
+  <div class="header-sep"></div>
+  <span id="image-info"></span>
+  <button class="hdr-btn" onclick="document.getElementById('file-input').click()">Open</button>
+  <button class="hdr-btn hdr-btn-primary" id="export-btn" disabled onclick="exportImage()">Export</button>
+</header>
+
+<div id="body">
+  <!-- Drop zone (shown when no image) -->
+  <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+    <svg class="dz-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+      <rect x="2" y="2" width="20" height="20" rx="2"/>
+      <path d="M2 16l5.5-5.5 4 4 3.5-3.5L21 17" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="8" cy="8" r="1.5"/>
+    </svg>
+    <div class="dz-title">Drop a film negative here</div>
+    <div class="dz-sub">
+      Supports JPEG, PNG, WebP, TIFF, HEIC<br>
+      Color or Black &amp; White negatives
+    </div>
+    <div class="dz-btn">Browse Files</div>
+  </div>
+
+  <!-- Workspace (shown when image loaded) -->
+  <div id="workspace">
+    <div id="preview-area">
+      <div id="canvas-wrap">
+        <canvas id="output-canvas"></canvas>
+        <canvas id="before-canvas"></canvas>
+        <div id="split-handle"></div>
+        <div class="view-label" id="lbl-before">NEGATIVE</div>
+        <div class="view-label" id="lbl-after">POSITIVE</div>
+      </div>
+    </div>
+
+    <div id="sidebar">
+      <div id="hist-wrap">
+        <canvas id="hist-canvas" width="248" height="56"></canvas>
+      </div>
+
+      <div id="toolbar">
+        <button class="tb-btn" onclick="autoDetectBase()" title="Sample film base from image borders">Auto Base</button>
+        <button class="tb-btn" onclick="autoLevels()" title="Auto white and black points">Auto Levels</button>
+        <button class="tb-btn" id="split-btn" onclick="toggleSplit()">Split View</button>
+        <div class="tb-sep"></div>
+        <button class="tb-btn" onclick="resetAll()">Reset</button>
+      </div>
+
+      <div id="controls">
+
+        <!-- ── Presets ── -->
+        <div class="sec">
+          <div class="sec-hdr" onclick="toggleSec(this)">
+            <span class="sec-title">Presets</span>
+            <span class="sec-arrow">▾</span>
+          </div>
+          <div class="sec-body">
+            <div class="preset-grid">
+              <div class="preset-btn" onclick="applyPreset('c41')">
+                <span class="pname">C-41 Color</span>
+                <span class="psub">Standard neg film</span>
+              </div>
+              <div class="preset-btn" onclick="applyPreset('kodakgold')">
+                <span class="pname">Kodak Gold</span>
+                <span class="psub">Warm classic look</span>
+              </div>
+              <div class="preset-btn" onclick="applyPreset('fuji')">
+                <span class="pname">Fuji Pro</span>
+                <span class="psub">Cool neutral tones</span>
+              </div>
+              <div class="preset-btn" onclick="applyPreset('portra')">
+                <span class="pname">Portra 400</span>
+                <span class="psub">Soft skin tones</span>
+              </div>
+              <div class="preset-btn" onclick="applyPreset('bw')">
+                <span class="pname">B&amp;W Film</span>
+                <span class="psub">Monochrome neg</span>
+              </div>
+              <div class="preset-btn" onclick="applyPreset('neutral')">
+                <span class="pname">Neutral</span>
+                <span class="psub">Clean inversion</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Film Base / Orange Mask ── -->
+        <div class="sec">
+          <div class="sec-hdr" onclick="toggleSec(this)">
+            <span class="sec-title">Film Base · Orange Mask</span>
+            <span class="sec-arrow">▾</span>
+          </div>
+          <div class="sec-body">
+            <div class="ctrl">
+              <label class="ctrl-lbl" style="color:var(--red)">Red Base</label>
+              <input type="range" id="baseR" class="sr" min="0.05" max="1.0" step="0.001" value="0.90">
+              <span class="ctrl-val" id="v-baseR">0.900</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl" style="color:var(--green)">Green Base</label>
+              <input type="range" id="baseG" class="sg" min="0.05" max="1.0" step="0.001" value="0.70">
+              <span class="ctrl-val" id="v-baseG">0.700</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl" style="color:var(--blue)">Blue Base</label>
+              <input type="range" id="baseB" class="sb" min="0.05" max="1.0" step="0.001" value="0.50">
+              <span class="ctrl-val" id="v-baseB">0.500</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Tone ── -->
+        <div class="sec">
+          <div class="sec-hdr" onclick="toggleSec(this)">
+            <span class="sec-title">Tone</span>
+            <span class="sec-arrow">▾</span>
+          </div>
+          <div class="sec-body">
+            <div class="ctrl">
+              <label class="ctrl-lbl">Exposure (EV)</label>
+              <input type="range" id="exposure" min="-3" max="3" step="0.05" value="0">
+              <span class="ctrl-val" id="v-exposure">0.00</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Contrast</label>
+              <input type="range" id="contrast" min="-100" max="100" step="1" value="0">
+              <span class="ctrl-val" id="v-contrast">0</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Highlights</label>
+              <input type="range" id="highlights" min="-100" max="100" step="1" value="0">
+              <span class="ctrl-val" id="v-highlights">0</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Shadows</label>
+              <input type="range" id="shadows" min="-100" max="100" step="1" value="0">
+              <span class="ctrl-val" id="v-shadows">0</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Gamma</label>
+              <input type="range" id="gamma" min="0.30" max="3.00" step="0.01" value="1.00">
+              <span class="ctrl-val" id="v-gamma">1.00</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Blacks</label>
+              <input type="range" id="blacks" min="0" max="0.45" step="0.001" value="0">
+              <span class="ctrl-val" id="v-blacks">0.000</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Whites</label>
+              <input type="range" id="whites" min="0.55" max="1.0" step="0.001" value="1.0">
+              <span class="ctrl-val" id="v-whites">1.000</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Color ── -->
+        <div class="sec">
+          <div class="sec-hdr" onclick="toggleSec(this)">
+            <span class="sec-title">Color</span>
+            <span class="sec-arrow">▾</span>
+          </div>
+          <div class="sec-body">
+            <div class="ctrl">
+              <label class="ctrl-lbl">Saturation</label>
+              <input type="range" id="saturation" min="0" max="2.5" step="0.01" value="1.0">
+              <span class="ctrl-val" id="v-saturation">1.00</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Vibrance</label>
+              <input type="range" id="vibrance" min="-1" max="1" step="0.01" value="0">
+              <span class="ctrl-val" id="v-vibrance">0.00</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Temperature</label>
+              <input type="range" id="temperature" min="-100" max="100" step="1" value="0">
+              <span class="ctrl-val" id="v-temperature">0</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Tint (G↔M)</label>
+              <input type="range" id="tint" min="-100" max="100" step="1" value="0">
+              <span class="ctrl-val" id="v-tint">0</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Hue Shift</label>
+              <input type="range" id="hue" min="-180" max="180" step="1" value="0">
+              <span class="ctrl-val" id="v-hue">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Channel Curves ── -->
+        <div class="sec">
+          <div class="sec-hdr" onclick="toggleSec(this)">
+            <span class="sec-title">Channel Curves</span>
+            <span class="sec-arrow">▾</span>
+          </div>
+          <div class="sec-body">
+
+            <div class="ch-group ch-group-r">
+              <div class="ch-group-title">Red</div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Gamma</label>
+                <input type="range" id="rGamma" class="sr" min="0.30" max="3.00" step="0.01" value="1.00">
+                <span class="ctrl-val" id="v-rGamma">1.00</span>
+              </div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Lift</label>
+                <input type="range" id="rLift" class="sr" min="-0.25" max="0.25" step="0.002" value="0">
+                <span class="ctrl-val" id="v-rLift">0.000</span>
+              </div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Gain</label>
+                <input type="range" id="rGain" class="sr" min="0.25" max="2.5" step="0.01" value="1.00">
+                <span class="ctrl-val" id="v-rGain">1.00</span>
+              </div>
+            </div>
+
+            <div class="ch-group ch-group-g">
+              <div class="ch-group-title">Green</div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Gamma</label>
+                <input type="range" id="gGamma" class="sg" min="0.30" max="3.00" step="0.01" value="1.00">
+                <span class="ctrl-val" id="v-gGamma">1.00</span>
+              </div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Lift</label>
+                <input type="range" id="gLift" class="sg" min="-0.25" max="0.25" step="0.002" value="0">
+                <span class="ctrl-val" id="v-gLift">0.000</span>
+              </div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Gain</label>
+                <input type="range" id="gGain" class="sg" min="0.25" max="2.5" step="0.01" value="1.00">
+                <span class="ctrl-val" id="v-gGain">1.00</span>
+              </div>
+            </div>
+
+            <div class="ch-group ch-group-b">
+              <div class="ch-group-title">Blue</div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Gamma</label>
+                <input type="range" id="bGamma" class="sb" min="0.30" max="3.00" step="0.01" value="1.00">
+                <span class="ctrl-val" id="v-bGamma">1.00</span>
+              </div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Lift</label>
+                <input type="range" id="bLift" class="sb" min="-0.25" max="0.25" step="0.002" value="0">
+                <span class="ctrl-val" id="v-bLift">0.000</span>
+              </div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Gain</label>
+                <input type="range" id="bGain" class="sb" min="0.25" max="2.5" step="0.01" value="1.00">
+                <span class="ctrl-val" id="v-bGain">1.00</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── Finish ── -->
+        <div class="sec">
+          <div class="sec-hdr" onclick="toggleSec(this)">
+            <span class="sec-title">Finish</span>
+            <span class="sec-arrow">▾</span>
+          </div>
+          <div class="sec-body">
+            <div class="ctrl">
+              <label class="ctrl-lbl">Clarity</label>
+              <input type="range" id="clarity" min="-1" max="1" step="0.01" value="0">
+              <span class="ctrl-val" id="v-clarity">0.00</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Sharpness</label>
+              <input type="range" id="sharpness" min="0" max="3" step="0.05" value="0">
+              <span class="ctrl-val" id="v-sharpness">0.00</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Grain Amount</label>
+              <input type="range" id="grain" min="0" max="50" step="0.5" value="0">
+              <span class="ctrl-val" id="v-grain">0.0</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Vignette</label>
+              <input type="range" id="vignette" min="-1" max="1" step="0.01" value="0">
+              <span class="ctrl-val" id="v-vignette">0.00</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /controls -->
+    </div><!-- /sidebar -->
+  </div><!-- /workspace -->
+</div><!-- /body -->
+
+<div id="loading">Processing…</div>
+<input type="file" id="file-input" accept="image/*,image/heic,image/heif">
+
+<script>
+'use strict';
+
+// ════════════════════════════════════════════════════════════
+//  State
+// ════════════════════════════════════════════════════════════
+const S = {
+  baseR: 0.90, baseG: 0.70, baseB: 0.50,
+  exposure: 0, contrast: 0, highlights: 0, shadows: 0,
+  gamma: 1.0, blacks: 0, whites: 1.0,
+  saturation: 1.0, vibrance: 0, temperature: 0, tint: 0, hue: 0,
+  rGamma: 1.0, rLift: 0.0, rGain: 1.0,
+  gGamma: 1.0, gLift: 0.0, gGain: 1.0,
+  bGamma: 1.0, bLift: 0.0, bGain: 1.0,
+  clarity: 0, sharpness: 0, grain: 0, vignette: 0,
+};
+
+const DEFAULTS = Object.assign({}, S);
+
+let originalData = null;  // ImageData of the loaded negative
+let splitMode    = false;
+let splitPos     = 0.5;
+let draggingSplit = false;
+let processTimer = null;
+let processing   = false;
+
+// ════════════════════════════════════════════════════════════
+//  DOM refs
+// ════════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const outCanvas  = $('output-canvas');
+const befCanvas  = $('before-canvas');
+const outCtx     = outCanvas.getContext('2d', { willReadFrequently: true });
+const befCtx     = befCanvas.getContext('2d');
+const histCanvas = $('hist-canvas');
+const histCtx    = histCanvas.getContext('2d');
+const dropZone   = $('drop-zone');
+const workspace  = $('workspace');
+
+// ════════════════════════════════════════════════════════════
+//  Slider wiring
+// ════════════════════════════════════════════════════════════
+const SLIDERS = [
+  'baseR','baseG','baseB',
+  'exposure','contrast','highlights','shadows','gamma','blacks','whites',
+  'saturation','vibrance','temperature','tint','hue',
+  'rGamma','rLift','rGain',
+  'gGamma','gLift','gGain',
+  'bGamma','bLift','bGain',
+  'clarity','sharpness','grain','vignette',
+];
+
+SLIDERS.forEach(id => {
+  const el  = $(id);
+  const vel = $('v-' + id);
+  el.addEventListener('input', () => {
+    S[id] = parseFloat(el.value);
+    vel.textContent = fmt(id, S[id]);
+    scheduleProcess();
+  });
+});
+
+function fmt(id, v) {
+  const int1 = ['contrast','highlights','shadows','temperature','tint','hue','grain'];
+  if (int1.includes(id)) return Math.round(v).toString();
+  if (['baseR','baseG','baseB','blacks','whites','rLift','gLift','bLift'].includes(id))
+    return v.toFixed(3);
+  return v.toFixed(2);
+}
+
+function setSlider(id, v) {
+  const el = $(id);
+  if (!el) return;
+  const clamped = Math.max(parseFloat(el.min), Math.min(parseFloat(el.max), v));
+  el.value = clamped;
+  S[id] = clamped;
+  $('v-' + id).textContent = fmt(id, clamped);
+}
+
+// ════════════════════════════════════════════════════════════
+//  File handling
+// ════════════════════════════════════════════════════════════
+$('file-input').addEventListener('change', e => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+  e.target.value = '';
+});
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      outCanvas.width = befCanvas.width = w;
+      outCanvas.height = befCanvas.height = h;
+
+      befCtx.drawImage(img, 0, 0);
+      outCtx.drawImage(img, 0, 0);
+      originalData = outCtx.getImageData(0, 0, w, h);
+
+      dropZone.style.display = 'none';
+      workspace.classList.add('active');
+      $('export-btn').disabled = false;
+      $('image-info').style.display = 'inline';
+      $('image-info').textContent = `${w} × ${h}`;
+
+      autoDetectBase();  // run immediately after load
+    };
+    img.onerror = () => alert('Could not load image. Try a different file.');
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ════════════════════════════════════════════════════════════
+//  Processing pipeline
+// ════════════════════════════════════════════════════════════
+function scheduleProcess() {
+  if (processTimer) clearTimeout(processTimer);
+  processTimer = setTimeout(processImage, 25);
+}
+
+function processImage() {
+  if (!originalData || processing) return;
+  processing = true;
+
+  // Use setTimeout(0) to yield to the browser before heavy work
+  setTimeout(() => {
+    const t0 = performance.now();
+    const src = originalData;
+    const w = src.width, h = src.height;
+
+    // Build per-channel LUTs (256-entry, avoids per-pixel division/pow)
+    const lutR = buildLUT('r');
+    const lutG = buildLUT('g');
+    const lutB = buildLUT('b');
+
+    // Precompute global scalars
+    const expFactor  = Math.pow(2, S.exposure);
+    const conFactor  = (S.contrast + 100) / 100;   // 0..2
+    const hlAmt      = S.highlights / 200;          // ±0.5
+    const shAmt      = S.shadows    / 200;
+    const sat        = S.saturation;
+    const vib        = S.vibrance;
+    const tempR      =  S.temperature * 0.0008;
+    const tempB      = -S.temperature * 0.0008;
+    const tintG      = -S.tint        * 0.0005;
+    const doHue      = S.hue !== 0;
+    const hueRad     = S.hue * Math.PI / 180;
+    const cosH       = Math.cos(hueRad);
+    const sinH       = Math.sin(hueRad);
+    const doVig      = S.vignette !== 0;
+    const vigAmt     = S.vignette;
+    const cx         = w * 0.5, cy = h * 0.5;
+    const maxDist    = Math.sqrt(cx*cx + cy*cy);
+    const doGrain    = S.grain > 0;
+    const grainAmt   = S.grain / 255;
+
+    const srcBuf = src.data;
+    const dst    = outCtx.createImageData(w, h);
+    const dstBuf = dst.data;
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+
+        // 1. Per-channel LUT (base correction + invert + channel gamma/lift/gain + global gamma + levels)
+        let r = lutR[srcBuf[i    ]] / 255;
+        let g = lutG[srcBuf[i + 1]] / 255;
+        let b = lutB[srcBuf[i + 2]] / 255;
+
+        // 2. Exposure
+        r *= expFactor;
+        g *= expFactor;
+        b *= expFactor;
+
+        // 3. Highlights (soft knee above 0.5)
+        if (hlAmt !== 0) {
+          r = applyToneBend(r, 0.5, 1.0, hlAmt);
+          g = applyToneBend(g, 0.5, 1.0, hlAmt);
+          b = applyToneBend(b, 0.5, 1.0, hlAmt);
+        }
+
+        // 4. Shadows (soft knee below 0.5)
+        if (shAmt !== 0) {
+          r = applyToneBend(r, 0.0, 0.5, shAmt);
+          g = applyToneBend(g, 0.0, 0.5, shAmt);
+          b = applyToneBend(b, 0.0, 0.5, shAmt);
+        }
+
+        // 5. Contrast (centred at 0.5)
+        if (S.contrast !== 0) {
+          r = (r - 0.5) * conFactor + 0.5;
+          g = (g - 0.5) * conFactor + 0.5;
+          b = (b - 0.5) * conFactor + 0.5;
+        }
+
+        // 6. Temperature / Tint
+        r += tempR;
+        b += tempB;
+        g += tintG;
+
+        // 7. Saturation
+        if (sat !== 1.0) {
+          const luma = 0.2126*r + 0.7152*g + 0.0722*b;
+          r = luma + (r - luma) * sat;
+          g = luma + (g - luma) * sat;
+          b = luma + (b - luma) * sat;
+        }
+
+        // 8. Vibrance (selective saturation – boosts less-saturated pixels more)
+        if (vib !== 0) {
+          const luma = 0.2126*r + 0.7152*g + 0.0722*b;
+          const maxC = Math.max(r, g, b);
+          const minC = Math.min(r, g, b);
+          const chroma = maxC - minC;
+          const vibroFactor = 1 + vib * (1 - chroma);
+          r = luma + (r - luma) * vibroFactor;
+          g = luma + (g - luma) * vibroFactor;
+          b = luma + (b - luma) * vibroFactor;
+        }
+
+        // 9. Hue rotation (RGB rotate in opponent-colour plane)
+        if (doHue) {
+          const luma = 0.2126*r + 0.7152*g + 0.0722*b;
+          const cr = r - luma, cg = g - luma, cb = b - luma;
+          r = luma + cr*cosH - cb*sinH;
+          g = luma + cg;
+          b = luma + cb*cosH + cr*sinH;
+        }
+
+        // 10. Grain
+        if (doGrain) {
+          const noise = (Math.random() - 0.5) * grainAmt;
+          r += noise; g += noise; b += noise;
+        }
+
+        // 11. Vignette
+        if (doVig) {
+          const dx = (x - cx) / maxDist;
+          const dy = (y - cy) / maxDist;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          const vig  = 1 + vigAmt * dist * dist;  // >1 darkens, <1 brightens
+          r *= vig; g *= vig; b *= vig;
+        }
+
+        // 12. Output
+        dstBuf[i    ] = clamp255(r);
+        dstBuf[i + 1] = clamp255(g);
+        dstBuf[i + 2] = clamp255(b);
+        dstBuf[i + 3] = srcBuf[i + 3];
+      }
+    }
+
+    // Clarity (unsharp-mask based midtone contrast) applied post
+    let finalData = dst;
+    if (S.clarity !== 0 || S.sharpness > 0) {
+      finalData = applyUnsharp(dst, w, h);
+    }
+
+    outCtx.putImageData(finalData, 0, 0);
+    updateSplitOverlay();
+    drawHistogram(finalData.data, w, h);
+    processing = false;
+  }, 0);
+}
+
+// Soft tone bend: affects values in [pivotMin, pivotMax] range
+function applyToneBend(v, pivotMin, pivotMax, amount) {
+  if (v < pivotMin || v > pivotMax) return v;
+  const t = (v - pivotMin) / (pivotMax - pivotMin);  // 0..1 within region
+  const bump = amount * Math.sin(t * Math.PI);        // smooth bell
+  return v + bump;
+}
+
+// ════════════════════════════════════════════════════════════
+//  Per-channel LUT builder
+// ════════════════════════════════════════════════════════════
+function buildLUT(ch) {
+  const Ch  = ch.toUpperCase();
+  const base  = S['base'  + Ch];
+  const chGam = S[ch      + 'Gamma'];
+  const lift  = S[ch      + 'Lift'];
+  const gain  = S[ch      + 'Gain'];
+  const gGam  = S.gamma;
+  const bl    = S.blacks;
+  const wh    = S.whites;
+
+  const lut = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) {
+    let v = i / 255;
+
+    // Film base normalisation – removes orange mask
+    // base is the film's minimum density transmission (highest pixel value)
+    v = v / base;
+    if (v > 1) v = 1;          // clamp above-base values
+
+    // Invert (negative → positive)
+    // Dark scene (high v near 1) → small positive → dark in output ✓
+    // Bright scene (low v) → large positive → bright in output ✓
+    v = 1 - v;
+
+    // Per-channel gamma (paper response / colour correction)
+    if (chGam !== 1.0 && v > 0) v = Math.pow(v, 1 / chGam);
+
+    // Per-channel lift (additive black point shift)
+    v += lift;
+
+    // Per-channel gain (multiplicative brightness)
+    v *= gain;
+
+    // Global gamma (overall tonal response)
+    if (gGam !== 1.0 && v > 0) v = Math.pow(v, 1 / gGam);
+
+    // Global levels (map [blacks, whites] → [0, 1])
+    v = (v - bl) / (wh - bl);
+
+    lut[i] = clamp255(v);
+  }
+  return lut;
+}
+
+function clamp255(v) {
+  return v <= 0 ? 0 : v >= 1 ? 255 : (v * 255 + 0.5) | 0;
+}
+
+// ════════════════════════════════════════════════════════════
+//  Unsharp / Clarity
+// ════════════════════════════════════════════════════════════
+function applyUnsharp(imgData, w, h) {
+  if (S.clarity === 0 && S.sharpness === 0) return imgData;
+
+  const sharpen = S.sharpness;
+  const clarity = S.clarity;
+
+  // Build a blurred copy (box blur radius 1 for sharpness, radius 8 for clarity)
+  const out = outCtx.createImageData(w, h);
+  const src = imgData.data;
+  const dst = out.data;
+
+  // Simple 3×3 box blur for sharpness
+  const blurR1 = blur3x3(src, w, h);
+
+  // Wider blur (radius ≈ 8) for clarity – approximated as 3 passes of box blur r=5
+  const blurR8 = blur3x3(blurR1, w, h);
+  const blurR8b = blur3x3(blurR8, w, h);
+
+  for (let i = 0; i < src.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const orig   = src[i + c];
+      const sharp  = orig + sharpen  * (orig - blurR1[i + c]);
+      const final_ = sharp + clarity * (sharp - blurR8b[i + c]);
+      dst[i + c]   = Math.max(0, Math.min(255, final_ | 0));
+    }
+    dst[i + 3] = src[i + 3];
+  }
+  return out;
+}
+
+function blur3x3(data, w, h) {
+  const out = new Uint8Array(data.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        let sum = 0, cnt = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+              sum += data[(ny * w + nx) * 4 + c];
+              cnt++;
+            }
+          }
+        }
+        out[i + c] = (sum / cnt) | 0;
+      }
+      out[i + 3] = data[i + 3];
+    }
+  }
+  return out;
+}
+
+// ════════════════════════════════════════════════════════════
+//  Auto detection
+// ════════════════════════════════════════════════════════════
+function autoDetectBase() {
+  if (!originalData) return;
+  const data = originalData.data;
+  const len  = data.length;
+
+  // Build histograms
+  const rH = new Uint32Array(256);
+  const gH = new Uint32Array(256);
+  const bH = new Uint32Array(256);
+  for (let i = 0; i < len; i += 4) {
+    rH[data[i]]++;
+    gH[data[i+1]]++;
+    bH[data[i+2]]++;
+  }
+
+  // Find 99th-percentile value per channel (robust against single bright pixels / dust)
+  const n = len / 4;
+  const thresh = n * 0.01;
+
+  setSlider('baseR', percentilePeak(rH, thresh) / 255);
+  setSlider('baseG', percentilePeak(gH, thresh) / 255);
+  setSlider('baseB', percentilePeak(bH, thresh) / 255);
+
+  scheduleProcess();
+}
+
+function percentilePeak(hist, thresh) {
+  let cum = 0;
+  for (let i = 255; i >= 0; i--) {
+    cum += hist[i];
+    if (cum >= thresh) return Math.max(1, i);
+  }
+  return 1;
+}
+
+// Auto levels: after base is detected, stretch the output to fill the range
+function autoLevels() {
+  if (!originalData) return;
+  autoDetectBase();
+
+  // Process once with current base, then analyse output to set blacks/whites
+  // We'll defer to a double-pass after a short delay
+  setTimeout(() => {
+    const tmpCtx = document.createElement('canvas').getContext('2d');
+    tmpCtx.canvas.width  = originalData.width;
+    tmpCtx.canvas.height = originalData.height;
+    // Re-read what was drawn to outCanvas
+    const pixels = outCtx.getImageData(0, 0, originalData.width, originalData.height).data;
+
+    const lH = new Uint32Array(256);
+    for (let i = 0; i < pixels.length; i += 4) {
+      const luma = (0.299*pixels[i] + 0.587*pixels[i+1] + 0.114*pixels[i+2]) | 0;
+      lH[luma]++;
+    }
+
+    const n = originalData.width * originalData.height;
+    // Find 0.1% black and white points
+    const clipN = n * 0.001;
+
+    let black = 0, cum = 0;
+    for (let i = 0; i < 256; i++) {
+      cum += lH[i];
+      if (cum > clipN) { black = i; break; }
+    }
+
+    let white = 255; cum = 0;
+    for (let i = 255; i >= 0; i--) {
+      cum += lH[i];
+      if (cum > clipN) { white = i; break; }
+    }
+
+    setSlider('blacks', black / 255);
+    setSlider('whites', white / 255);
+    scheduleProcess();
+  }, 80);
+}
+
+// ════════════════════════════════════════════════════════════
+//  Histogram
+// ════════════════════════════════════════════════════════════
+function drawHistogram(pixels, w, h) {
+  const rH = new Float32Array(256);
+  const gH = new Float32Array(256);
+  const bH = new Float32Array(256);
+  const lH = new Float32Array(256);
+
+  for (let i = 0; i < pixels.length; i += 4) {
+    rH[pixels[i    ]]++;
+    gH[pixels[i + 1]]++;
+    bH[pixels[i + 2]]++;
+    const l = (0.299*pixels[i] + 0.587*pixels[i+1] + 0.114*pixels[i+2]) | 0;
+    lH[l]++;
+  }
+
+  let peak = 1;
+  for (let i = 0; i < 256; i++) {
+    if (rH[i] > peak) peak = rH[i];
+    if (gH[i] > peak) peak = gH[i];
+    if (bH[i] > peak) peak = bH[i];
+  }
+
+  const cw = histCanvas.width;
+  const ch = histCanvas.height;
+  histCtx.clearRect(0, 0, cw, ch);
+  histCtx.fillStyle = '#0a0a0a';
+  histCtx.fillRect(0, 0, cw, ch);
+
+  // Grid
+  histCtx.strokeStyle = 'rgba(255,255,255,0.04)';
+  histCtx.lineWidth = 1;
+  for (const x of [0.25, 0.5, 0.75]) {
+    histCtx.beginPath();
+    histCtx.moveTo(x * cw, 0);
+    histCtx.lineTo(x * cw, ch);
+    histCtx.stroke();
+  }
+
+  // Luma
+  drawHistCurve(lH, peak, cw, ch, 'rgba(255,255,255,0.18)');
+  // Channels
+  drawHistCurve(rH, peak, cw, ch, 'rgba(217,96,96,0.55)');
+  drawHistCurve(gH, peak, cw, ch, 'rgba(96,200,112,0.55)');
+  drawHistCurve(bH, peak, cw, ch, 'rgba(96,144,216,0.55)');
+}
+
+function drawHistCurve(bins, peak, cw, ch, color) {
+  histCtx.fillStyle = color;
+  histCtx.beginPath();
+  histCtx.moveTo(0, ch);
+  for (let i = 0; i < 256; i++) {
+    const x = (i / 255) * cw;
+    // Use sqrt scale to make dim regions visible
+    const y = ch - Math.sqrt(bins[i] / peak) * ch;
+    histCtx.lineTo(x, y);
+  }
+  histCtx.lineTo(cw, ch);
+  histCtx.closePath();
+  histCtx.fill();
+}
+
+// ════════════════════════════════════════════════════════════
+//  Split view
+// ════════════════════════════════════════════════════════════
+function toggleSplit() {
+  splitMode = !splitMode;
+  const btn = $('split-btn');
+  btn.classList.toggle('active', splitMode);
+  $('split-handle').style.display = splitMode ? 'block' : 'none';
+  $('lbl-before').style.display   = splitMode ? 'block' : 'none';
+  $('lbl-after').style.display    = splitMode ? 'block' : 'none';
+  befCanvas.style.display         = splitMode ? 'block' : 'none';
+  updateSplitOverlay();
+}
+
+function updateSplitOverlay() {
+  if (!splitMode) return;
+  const pct = splitPos * 100;
+  befCanvas.style.clipPath      = `inset(0 ${(100 - pct).toFixed(2)}% 0 0)`;
+  $('split-handle').style.left  = pct + '%';
+}
+
+$('split-handle').addEventListener('mousedown', e => { draggingSplit = true; e.preventDefault(); });
+document.addEventListener('mousemove', e => {
+  if (!draggingSplit) return;
+  const rect = outCanvas.getBoundingClientRect();
+  splitPos = Math.max(0.02, Math.min(0.98, (e.clientX - rect.left) / rect.width));
+  updateSplitOverlay();
+});
+document.addEventListener('mouseup', () => { draggingSplit = false; });
+
+// Touch support for split handle
+$('split-handle').addEventListener('touchstart', e => { draggingSplit = true; e.preventDefault(); }, { passive: false });
+document.addEventListener('touchmove', e => {
+  if (!draggingSplit) return;
+  const rect = outCanvas.getBoundingClientRect();
+  splitPos = Math.max(0.02, Math.min(0.98, (e.touches[0].clientX - rect.left) / rect.width));
+  updateSplitOverlay();
+}, { passive: true });
+document.addEventListener('touchend', () => { draggingSplit = false; });
+
+// ════════════════════════════════════════════════════════════
+//  Presets
+// ════════════════════════════════════════════════════════════
+const PRESETS = {
+  c41: {
+    baseR:0.88, baseG:0.66, baseB:0.44,
+    gamma:1.0, contrast:12, exposure:0.10, highlights:-10, shadows:8,
+    saturation:1.08, vibrance:0.1, temperature:8, tint:0,
+    rGamma:1.0, gGamma:1.05, bGamma:0.95, rGain:1.0, gGain:1.0, bGain:1.0,
+  },
+  kodakgold: {
+    baseR:0.93, baseG:0.70, baseB:0.47,
+    gamma:1.05, contrast:8, exposure:0.15, highlights:-5, shadows:5,
+    saturation:1.05, vibrance:0.12, temperature:20, tint:4,
+    rGamma:1.06, gGamma:1.0, bGamma:0.92, rGain:1.04, gGain:1.0, bGain:0.96,
+  },
+  fuji: {
+    baseR:0.83, baseG:0.63, baseB:0.43,
+    gamma:0.98, contrast:14, exposure:0.05, highlights:-8, shadows:6,
+    saturation:1.12, vibrance:0.15, temperature:-6, tint:-4,
+    rGamma:0.96, gGamma:1.0, bGamma:1.04, rGain:0.97, gGain:1.0, bGain:1.03,
+  },
+  portra: {
+    baseR:0.86, baseG:0.65, baseB:0.43,
+    gamma:1.02, contrast:6, exposure:0.10, highlights:-12, shadows:10,
+    saturation:0.95, vibrance:0.18, temperature:12, tint:2,
+    rGamma:1.03, gGamma:1.01, bGamma:0.97, rGain:1.02, gGain:1.0, bGain:0.98,
+  },
+  bw: {
+    baseR:0.85, baseG:0.85, baseB:0.85,
+    gamma:1.0, contrast:18, exposure:0.05, highlights:-5, shadows:5,
+    saturation:0.0, vibrance:0.0, temperature:0, tint:0,
+    rGamma:1.0, gGamma:1.0, bGamma:1.0, rGain:1.0, gGain:1.0, bGain:1.0,
+  },
+  neutral: {
+    baseR:1.0, baseG:1.0, baseB:1.0,
+    gamma:1.0, contrast:0, exposure:0, highlights:0, shadows:0,
+    saturation:1.0, vibrance:0, temperature:0, tint:0,
+    rGamma:1.0, gGamma:1.0, bGamma:1.0, rGain:1.0, gGain:1.0, bGain:1.0,
+  },
+};
+
+function applyPreset(name) {
+  const p = PRESETS[name];
+  if (!p) return;
+  Object.keys(p).forEach(k => setSlider(k, p[k]));
+  scheduleProcess();
+}
+
+// ════════════════════════════════════════════════════════════
+//  Reset
+// ════════════════════════════════════════════════════════════
+function resetAll() {
+  SLIDERS.forEach(k => setSlider(k, DEFAULTS[k]));
+  scheduleProcess();
+}
+
+// ════════════════════════════════════════════════════════════
+//  Section toggle
+// ════════════════════════════════════════════════════════════
+function toggleSec(hdr) {
+  hdr.closest('.sec').classList.toggle('collapsed');
+}
+
+// ════════════════════════════════════════════════════════════
+//  Export
+// ════════════════════════════════════════════════════════════
+function exportImage() {
+  const a  = document.createElement('a');
+  a.href   = outCanvas.toDataURL('image/jpeg', 0.95);
+  a.download = 'darkroom-positive.jpg';
+  a.click();
+}
+
+// Initialise display values
+SLIDERS.forEach(id => {
+  const vel = $('v-' + id);
+  if (vel) vel.textContent = fmt(id, S[id]);
+});
+</script>
+</body>
+</html>
