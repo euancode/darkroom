@@ -1825,12 +1825,13 @@ $('replicate-key-input').addEventListener('keydown', e => {
 async function runColourise(apiKey) {
   if (currentIdx < 0 || !processedCanvas) return;
   const imgRec = images[currentIdx];
+  const key    = apiKey.trim();
 
   showProgressModal('Colourising…');
-  updateProgressModal(0, 4, 'Preparing image…');
+  updateProgressModal(0, 5, 'Preparing image…');
 
   try {
-    // Downscale to max 1024px for the API — colour is upsampled back at blend time
+    // Scale to max 1024px — colour channels are upsampled back to full-res at blend time
     const MAX = 1024;
     const sc  = Math.min(1, MAX / Math.max(processedCanvas.width, processedCanvas.height));
     const sw  = Math.round(processedCanvas.width  * sc);
@@ -1838,63 +1839,98 @@ async function runColourise(apiKey) {
     const thumbC = document.createElement('canvas');
     thumbC.width = sw; thumbC.height = sh;
     thumbC.getContext('2d').drawImage(processedCanvas, 0, 0, sw, sh);
-    const dataUrl = thumbC.toDataURL('image/jpeg', 0.92);
+    const blob = await new Promise(res => thumbC.toBlob(res, 'image/jpeg', 0.92));
 
-    updateProgressModal(1, 4, 'Sending to AI…');
+    updateProgressModal(1, 5, 'Uploading image…');
 
-    const startRes = await fetch(
-      'https://api.replicate.com/v1/models/arielreplicate/deoldify_image/predictions',
-      {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: { source_url: dataUrl, render_factor: 35 } }),
-      }
-    );
+    // Step 1: Upload image as binary to Replicate file storage.
+    // The model's source_url must be an https:// URL, not a data: URI.
+    const fileRes = await fetch('https://api.replicate.com/v1/files', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'image/jpeg',
+        'Content-Disposition': 'attachment; filename="source.jpg"',
+      },
+      body: blob,
+    });
 
-    if (!startRes.ok) {
-      let detail = `HTTP ${startRes.status}`;
-      try { const j = await startRes.json(); detail = j.detail || j.error || detail; } catch (_) {}
-      if (startRes.status === 401 || startRes.status === 403) {
+    if (!fileRes.ok) {
+      const j = await fileRes.json().catch(() => ({}));
+      if (fileRes.status === 401 || fileRes.status === 403) {
         localStorage.removeItem('darkroom.replicateKey');
-        detail += ' — your API key has been cleared, please re-enter it.';
+        throw new Error('Invalid API key (401) — key cleared, please re-enter.');
       }
-      throw new Error(detail);
+      throw new Error(j.detail || j.error || `Upload failed: HTTP ${fileRes.status}`);
     }
 
-    let prediction = await startRes.json();
-    updateProgressModal(2, 4, 'Processing…');
+    const fileData  = await fileRes.json();
+    const imageUrl  = fileData.urls?.get ?? fileData.url ?? fileData.urls?.download;
+    if (!imageUrl) throw new Error('Replicate file upload returned no URL.');
 
-    // Poll until complete (max ~3 min)
+    updateProgressModal(2, 5, 'Starting AI…');
+
+    // Step 2: Create prediction using the standard /v1/predictions endpoint
+    // (the model-level endpoint /v1/models/{owner}/{name}/predictions has CORS issues).
+    const predRes = await fetch('https://api.replicate.com/v1/predictions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'arielreplicate/deoldify_image',
+        input: { source_url: imageUrl, render_factor: 35 },
+      }),
+    });
+
+    if (!predRes.ok) {
+      const j = await predRes.json().catch(() => ({}));
+      if (predRes.status === 401 || predRes.status === 403) {
+        localStorage.removeItem('darkroom.replicateKey');
+        throw new Error('Invalid API key (401) — key cleared, please re-enter.');
+      }
+      if (predRes.status === 404) throw new Error('Model not found on Replicate (404). The model "arielreplicate/deoldify_image" may have been renamed or removed.');
+      throw new Error(j.detail || j.error || `Prediction failed: HTTP ${predRes.status}`);
+    }
+
+    let prediction = await predRes.json();
+    updateProgressModal(3, 5, 'Processing…');
+
+    // Step 3: Poll until complete (max ~3 min)
     let attempts = 0;
     while (prediction.status !== 'succeeded' && prediction.status !== 'failed') {
       if (++attempts > 120) throw new Error('Timed out after 3 minutes.');
       await new Promise(r => setTimeout(r, 1500));
       const pollRes = await fetch(
         `https://api.replicate.com/v1/predictions/${prediction.id}`,
-        { headers: { 'Authorization': `Bearer ${apiKey}` } }
+        { headers: { 'Authorization': `Bearer ${key}` } }
       );
-      prediction = await pollRes.json();
+      if (pollRes.ok) prediction = await pollRes.json();
     }
 
     if (prediction.status === 'failed') throw new Error(prediction.error || 'Colourisation failed.');
 
-    updateProgressModal(3, 4, 'Applying colour…');
+    updateProgressModal(4, 5, 'Applying colour…');
 
     const outputUrl = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
     const colImg    = await fetchImageElement(outputUrl);
 
-    // Store colourised canvas on image record at returned resolution
     const colC = document.createElement('canvas');
     colC.width = colImg.naturalWidth; colC.height = colImg.naturalHeight;
     colC.getContext('2d').drawImage(colImg, 0, 0);
     imgRec.colorizedCanvas = colC;
     imgRec.colorizeEnabled = true;
 
-    updateProgressModal(4, 4, 'Done.');
+    updateProgressModal(5, 5, 'Done.');
 
   } catch (err) {
     hideProgressModal();
-    alert('Colourisation failed:\n\n' + err.message);
+    const isNetwork = err instanceof TypeError;
+    alert(isNetwork
+      ? 'Network error — could not reach Replicate.\n\nOpen browser DevTools → Console for details. Likely cause: CORS or no internet.'
+      : 'Colourisation failed:\n\n' + err.message
+    );
     return;
   }
 
