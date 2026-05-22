@@ -1,0 +1,11 @@
+#!/bin/sh
+FILE="index.html"
+[ -f "$FILE" ] || exit 0
+current=$(grep -oE 'app-version">v[0-9]+\.[0-9]+' "$FILE" | grep -oE '[0-9]+\.[0-9]+' | head -1)
+[ -n "$current" ] || exit 0
+major="${current%%.*}"
+minor="${current##*.}"
+new_minor=$((minor + 1))
+sed -i "s/app-version\">v${current}/app-version\">v${major}.${new_minor}/" "$FILE"
+git add "$FILE"
+echo "[darkroom] version v${current} → v${major}.${new_minor}"
