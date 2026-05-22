@@ -1869,6 +1869,21 @@ $('replicate-key-input').addEventListener('keydown', e => {
   if (e.key === 'Escape') closeColouriseModal();
 });
 
+// When a browser blocks a direct Replicate request (CORS), transparently
+// retry through corsproxy.io. Flag is set after the first CORS failure so
+// all subsequent requests in the session skip the direct attempt.
+let _corsProxy = '';
+
+async function rFetch(url, opts) {
+  try {
+    return await fetch(_corsProxy + url, opts);
+  } catch (e) {
+    if (!(e instanceof TypeError) || _corsProxy) throw e;
+    _corsProxy = 'https://corsproxy.io/?';
+    return fetch(_corsProxy + url, opts);
+  }
+}
+
 async function runColourise(apiKey) {
   if (currentIdx < 0 || !processedCanvas) return;
   const imgRec = images[currentIdx];
@@ -1878,7 +1893,7 @@ async function runColourise(apiKey) {
   updateProgressModal(0, 5, 'Preparing image…');
 
   try {
-    // Scale to max 1024px — colour channels are upsampled back to full-res at blend time
+    // Scale to max 1024px — colour is upsampled back to full-res at blend time
     const MAX = 1024;
     const sc  = Math.min(1, MAX / Math.max(processedCanvas.width, processedCanvas.height));
     const sw  = Math.round(processedCanvas.width  * sc);
@@ -1890,9 +1905,8 @@ async function runColourise(apiKey) {
 
     updateProgressModal(1, 5, 'Uploading image…');
 
-    // Step 1: Upload image as binary to Replicate file storage.
-    // The model's source_url must be an https:// URL, not a data: URI.
-    const fileRes = await fetch('https://api.replicate.com/v1/files', {
+    // Step 1: Upload binary image to Replicate storage — model needs an https:// URL
+    const fileRes = await rFetch('https://api.replicate.com/v1/files', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${key}`,
@@ -1906,25 +1920,21 @@ async function runColourise(apiKey) {
       const j = await fileRes.json().catch(() => ({}));
       if (fileRes.status === 401 || fileRes.status === 403) {
         localStorage.removeItem('darkroom.replicateKey');
-        throw new Error('Invalid API key (401) — key cleared, please re-enter.');
+        throw new Error('Invalid API key — key cleared, please re-enter.');
       }
       throw new Error(j.detail || j.error || `Upload failed: HTTP ${fileRes.status}`);
     }
 
-    const fileData  = await fileRes.json();
-    const imageUrl  = fileData.urls?.get ?? fileData.url ?? fileData.urls?.download;
+    const fileData = await fileRes.json();
+    const imageUrl = fileData.urls?.get ?? fileData.url ?? fileData.urls?.download;
     if (!imageUrl) throw new Error('Replicate file upload returned no URL.');
 
     updateProgressModal(2, 5, 'Starting AI…');
 
-    // Step 2: Create prediction using the standard /v1/predictions endpoint
-    // (the model-level endpoint /v1/models/{owner}/{name}/predictions has CORS issues).
-    const predRes = await fetch('https://api.replicate.com/v1/predictions', {
+    // Step 2: Create prediction via the standard /v1/predictions endpoint
+    const predRes = await rFetch('https://api.replicate.com/v1/predictions', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'arielreplicate/deoldify_image',
         input: { source_url: imageUrl, render_factor: 35 },
@@ -1935,10 +1945,10 @@ async function runColourise(apiKey) {
       const j = await predRes.json().catch(() => ({}));
       if (predRes.status === 401 || predRes.status === 403) {
         localStorage.removeItem('darkroom.replicateKey');
-        throw new Error('Invalid API key (401) — key cleared, please re-enter.');
+        throw new Error('Invalid API key — key cleared, please re-enter.');
       }
-      if (predRes.status === 404) throw new Error('Model not found on Replicate (404). The model "arielreplicate/deoldify_image" may have been renamed or removed.');
-      throw new Error(j.detail || j.error || `Prediction failed: HTTP ${predRes.status}`);
+      if (predRes.status === 404) throw new Error('Model "arielreplicate/deoldify_image" not found on Replicate (404) — it may have been renamed.');
+      throw new Error(j.detail || j.error || `HTTP ${predRes.status}`);
     }
 
     let prediction = await predRes.json();
@@ -1949,7 +1959,7 @@ async function runColourise(apiKey) {
     while (prediction.status !== 'succeeded' && prediction.status !== 'failed') {
       if (++attempts > 120) throw new Error('Timed out after 3 minutes.');
       await new Promise(r => setTimeout(r, 1500));
-      const pollRes = await fetch(
+      const pollRes = await rFetch(
         `https://api.replicate.com/v1/predictions/${prediction.id}`,
         { headers: { 'Authorization': `Bearer ${key}` } }
       );
@@ -1973,11 +1983,7 @@ async function runColourise(apiKey) {
 
   } catch (err) {
     hideProgressModal();
-    const isNetwork = err instanceof TypeError;
-    alert(isNetwork
-      ? 'Network error — could not reach Replicate.\n\nOpen browser DevTools → Console for details. Likely cause: CORS or no internet.'
-      : 'Colourisation failed:\n\n' + err.message
-    );
+    alert('Colourisation failed:\n\n' + err.message);
     return;
   }
 
@@ -1987,7 +1993,9 @@ async function runColourise(apiKey) {
 }
 
 async function fetchImageElement(url) {
-  const res    = await fetch(url, { mode: 'cors' });
+  // Use proxy if already activated for this session
+  const target = _corsProxy ? _corsProxy + url : url;
+  const res    = await fetch(target);
   const blob   = await res.blob();
   const objUrl = URL.createObjectURL(blob);
   return new Promise((resolve, reject) => {
