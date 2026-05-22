@@ -447,6 +447,33 @@
     .progress-count  { font-size: 13px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
     .progress-file   { font-size: 10px; color: var(--muted2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+    /* ── Colourise modal ────────────────────────────────────── */
+    #colorize-modal {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.72);
+      align-items: center; justify-content: center; z-index: 100;
+    }
+    #colorize-modal.show { display: flex; }
+    .colorize-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 24px 28px; width: 360px; max-width: 90vw;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .colorize-title { font-size: 14px; font-weight: 600; color: var(--accent); letter-spacing: 0.05em; }
+    .colorize-sub   { font-size: 11px; color: var(--muted2); line-height: 1.6; }
+    .colorize-link  { font-size: 10px; color: var(--muted2); }
+    .colorize-link a { color: var(--accent); text-decoration: none; }
+    .colorize-link a:hover { text-decoration: underline; }
+    .colorize-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+    #replicate-key-input {
+      width: 100%; padding: 7px 10px;
+      background: var(--surface3); border: 1px solid var(--border);
+      border-radius: 4px; color: var(--text); font-size: 11px;
+      font-family: 'SF Mono', 'Fira Code', monospace; letter-spacing: 0.03em;
+      outline: none; box-sizing: border-box;
+    }
+    #replicate-key-input:focus { border-color: var(--accent); }
+
     input[type=file] { display: none; }
     * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
   </style>
@@ -457,7 +484,7 @@
   <div class="logo-circle"></div>
   <span class="app-name">DARKROOM</span>
   <span class="app-sub">Film Negative Converter</span>
-  <span class="app-version">v1.3</span>
+  <span class="app-version">v1.4</span>
   <div class="header-sep"></div>
   <span id="image-info"></span>
   <button class="hdr-btn" onclick="document.getElementById('file-input').click()">Open Files</button>
@@ -535,6 +562,7 @@
         <button class="tb-btn" onclick="autoDetectBase()">Auto Base</button>
         <button class="tb-btn" onclick="autoLevels()">Auto Levels</button>
         <button class="tb-btn" id="split-btn" onclick="toggleSplit()">Split View</button>
+        <button class="tb-btn" id="colorize-btn" onclick="startColourise(event)" title="Add realistic colour using AI (Shift+click to re-run)">Colourise</button>
         <div class="tb-sep"></div>
         <button class="tb-btn" onclick="resetAll()">Reset</button>
       </div>
@@ -782,6 +810,20 @@
 </div>
 
 <input type="file" id="file-input" accept="image/*,image/heic,image/heif" multiple>
+
+<!-- Colourise API key modal -->
+<div id="colorize-modal">
+  <div class="colorize-box">
+    <div class="colorize-title">AI Colourise</div>
+    <div class="colorize-sub">Adds realistic colour to your converted photo using DeOldify AI. Enter your Replicate API key — it's stored locally in your browser only.</div>
+    <input id="replicate-key-input" type="password" placeholder="r8_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+    <div class="colorize-link">Get a free key at <a href="https://replicate.com" target="_blank" rel="noopener">replicate.com</a></div>
+    <div class="colorize-actions">
+      <button class="hdr-btn" onclick="closeColouriseModal()">Cancel</button>
+      <button class="hdr-btn hdr-btn-primary" onclick="confirmColouriseKey()">Colourise</button>
+    </div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -1343,6 +1385,7 @@ function selectImage(idx) {
     el.classList.toggle('active', i === idx);
   });
   updateFilmstripDots();
+  updateColouriseButton();
   scheduleProcess();
 }
 
@@ -1358,11 +1401,17 @@ function processImage() {
   if (currentIdx < 0 || processing) return;
   processing = true;
   setTimeout(() => {
-    const result = runPipeline(images[currentIdx].originalData, images[currentIdx].settings);
+    const imgRec = images[currentIdx];
+    const result = runPipeline(imgRec.originalData, imgRec.settings);
     if (!processedCanvas) processedCanvas = document.createElement('canvas');
     processedCanvas.width  = result.width;
     processedCanvas.height = result.height;
-    processedCanvas.getContext('2d').putImageData(result, 0, 0);
+    const pctx = processedCanvas.getContext('2d');
+    if (imgRec.colorizeEnabled && imgRec.colorizedCanvas) {
+      pctx.putImageData(blendColourise(result, imgRec.colorizedCanvas), 0, 0);
+    } else {
+      pctx.putImageData(result, 0, 0);
+    }
     renderView();
     drawHistogram(result.data);
     processing = false;
@@ -1622,7 +1671,8 @@ document.addEventListener('mousemove', e=>{
   if(!draggingSplit)return;
   const r=outCanvas.getBoundingClientRect();
   splitPos=Math.max(0.02,Math.min(0.98,(e.clientX-r.left)/r.width));
-  updateSplitOverlay();
+  $('split-handle').style.left = (splitPos*100)+'%';
+  renderView();
 });
 document.addEventListener('mouseup',()=>{draggingSplit=false;});
 
@@ -1695,8 +1745,11 @@ async function exportAll() {
     updateProgressModal(i, total, images[i].name);
     await new Promise(r => setTimeout(r, 0));  // yield to repaint
 
-    const result = runPipeline(images[i].originalData, images[i].settings);
-    const blob   = await imageDataToBlob(result, 0.95);
+    let result = runPipeline(images[i].originalData, images[i].settings);
+    if (images[i].colorizeEnabled && images[i].colorizedCanvas) {
+      result = blendColourise(result, images[i].colorizedCanvas);
+    }
+    const blob = await imageDataToBlob(result, 0.95);
     zip.file(images[i].name.replace(/\.[^.]+$/, '') + '_positive.jpg', blob);
   }
 
@@ -1723,6 +1776,179 @@ function imageDataToBlob(imageData, quality) {
     c.getContext('2d').putImageData(imageData, 0, 0);
     c.toBlob(resolve, 'image/jpeg', quality);
   });
+}
+
+// ════════════════════════════════════════════════════════════
+//  AI Colourise  (Replicate / DeOldify)
+// ════════════════════════════════════════════════════════════
+
+function startColourise(evt) {
+  if (currentIdx < 0) return;
+  const imgRec    = images[currentIdx];
+  const forceNew  = evt && evt.shiftKey;
+
+  // Toggle existing colourisation without a new API call
+  if (!forceNew && imgRec.colorizedCanvas) {
+    imgRec.colorizeEnabled = !imgRec.colorizeEnabled;
+    updateColouriseButton();
+    scheduleProcess();
+    return;
+  }
+
+  const key = localStorage.getItem('darkroom.replicateKey');
+  if (key) {
+    runColourise(key);
+  } else {
+    $('colorize-modal').classList.add('show');
+    $('replicate-key-input').value = '';
+    setTimeout(() => $('replicate-key-input').focus(), 50);
+  }
+}
+
+function closeColouriseModal() {
+  $('colorize-modal').classList.remove('show');
+}
+
+function confirmColouriseKey() {
+  const key = $('replicate-key-input').value.trim();
+  if (!key) return;
+  localStorage.setItem('darkroom.replicateKey', key);
+  closeColouriseModal();
+  runColourise(key);
+}
+
+$('replicate-key-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter')  confirmColouriseKey();
+  if (e.key === 'Escape') closeColouriseModal();
+});
+
+async function runColourise(apiKey) {
+  if (currentIdx < 0 || !processedCanvas) return;
+  const imgRec = images[currentIdx];
+
+  showProgressModal('Colourising…');
+  updateProgressModal(0, 4, 'Preparing image…');
+
+  try {
+    // Downscale to max 1024px for the API — colour is upsampled back at blend time
+    const MAX = 1024;
+    const sc  = Math.min(1, MAX / Math.max(processedCanvas.width, processedCanvas.height));
+    const sw  = Math.round(processedCanvas.width  * sc);
+    const sh  = Math.round(processedCanvas.height * sc);
+    const thumbC = document.createElement('canvas');
+    thumbC.width = sw; thumbC.height = sh;
+    thumbC.getContext('2d').drawImage(processedCanvas, 0, 0, sw, sh);
+    const dataUrl = thumbC.toDataURL('image/jpeg', 0.92);
+
+    updateProgressModal(1, 4, 'Sending to AI…');
+
+    const startRes = await fetch(
+      'https://api.replicate.com/v1/models/arielreplicate/deoldify_image/predictions',
+      {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: { source_url: dataUrl, render_factor: 35 } }),
+      }
+    );
+
+    if (!startRes.ok) {
+      let detail = `HTTP ${startRes.status}`;
+      try { const j = await startRes.json(); detail = j.detail || j.error || detail; } catch (_) {}
+      if (startRes.status === 401 || startRes.status === 403) {
+        localStorage.removeItem('darkroom.replicateKey');
+        detail += ' — your API key has been cleared, please re-enter it.';
+      }
+      throw new Error(detail);
+    }
+
+    let prediction = await startRes.json();
+    updateProgressModal(2, 4, 'Processing…');
+
+    // Poll until complete (max ~3 min)
+    let attempts = 0;
+    while (prediction.status !== 'succeeded' && prediction.status !== 'failed') {
+      if (++attempts > 120) throw new Error('Timed out after 3 minutes.');
+      await new Promise(r => setTimeout(r, 1500));
+      const pollRes = await fetch(
+        `https://api.replicate.com/v1/predictions/${prediction.id}`,
+        { headers: { 'Authorization': `Bearer ${apiKey}` } }
+      );
+      prediction = await pollRes.json();
+    }
+
+    if (prediction.status === 'failed') throw new Error(prediction.error || 'Colourisation failed.');
+
+    updateProgressModal(3, 4, 'Applying colour…');
+
+    const outputUrl = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
+    const colImg    = await fetchImageElement(outputUrl);
+
+    // Store colourised canvas on image record at returned resolution
+    const colC = document.createElement('canvas');
+    colC.width = colImg.naturalWidth; colC.height = colImg.naturalHeight;
+    colC.getContext('2d').drawImage(colImg, 0, 0);
+    imgRec.colorizedCanvas = colC;
+    imgRec.colorizeEnabled = true;
+
+    updateProgressModal(4, 4, 'Done.');
+
+  } catch (err) {
+    hideProgressModal();
+    alert('Colourisation failed:\n\n' + err.message);
+    return;
+  }
+
+  hideProgressModal();
+  updateColouriseButton();
+  scheduleProcess();
+}
+
+async function fetchImageElement(url) {
+  const res    = await fetch(url, { mode: 'cors' });
+  const blob   = await res.blob();
+  const objUrl = URL.createObjectURL(blob);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload  = () => { resolve(img); URL.revokeObjectURL(objUrl); };
+    img.onerror = () => { reject(new Error('Could not load colourised image.')); URL.revokeObjectURL(objUrl); };
+    img.src = objUrl;
+  });
+}
+
+// Blend: pipeline luma (tone-adjusted) + DeOldify chroma — preserves every structural detail
+function blendColourise(pipelineResult, colorizedCanvas) {
+  const w = pipelineResult.width, h = pipelineResult.height;
+  const tmpC = document.createElement('canvas');
+  tmpC.width = w; tmpC.height = h;
+  tmpC.getContext('2d').drawImage(colorizedCanvas, 0, 0, w, h);
+  const colPx = tmpC.getContext('2d').getImageData(0, 0, w, h).data;
+  const srcPx = pipelineResult.data;
+  const out   = new ImageData(w, h);
+  const dst   = out.data;
+
+  for (let i = 0; i < srcPx.length; i += 4) {
+    const pL = (0.299*srcPx[i] + 0.587*srcPx[i+1] + 0.114*srcPx[i+2]) / 255;
+    const cL = (0.299*colPx[i] + 0.587*colPx[i+1] + 0.114*colPx[i+2]) / 255;
+    // Scale colourised RGB to match pipeline luminance exactly
+    const s  = cL > 0.02 ? Math.min(pL / cL, 2.5) : (pL > 0.5 ? 1 : 0.3);
+    dst[i]   = Math.max(0, Math.min(255, (colPx[i]   * s + 0.5) | 0));
+    dst[i+1] = Math.max(0, Math.min(255, (colPx[i+1] * s + 0.5) | 0));
+    dst[i+2] = Math.max(0, Math.min(255, (colPx[i+2] * s + 0.5) | 0));
+    dst[i+3] = 255;
+  }
+  return out;
+}
+
+function updateColouriseButton() {
+  const btn    = $('colorize-btn');
+  const imgRec = currentIdx >= 0 ? images[currentIdx] : null;
+  const hasCo  = !!(imgRec && imgRec.colorizedCanvas);
+  const isOn   = hasCo && imgRec.colorizeEnabled;
+  btn.classList.toggle('active', isOn);
+  btn.textContent = isOn ? 'Colourised ✓' : 'Colourise';
+  btn.title = isOn
+    ? 'Click to toggle colour off  •  Shift+click to re-run'
+    : (hasCo ? 'Click to re-enable colour  •  Shift+click to re-run' : 'Add realistic colour using AI (requires Replicate key)');
 }
 
 // ════════════════════════════════════════════════════════════
