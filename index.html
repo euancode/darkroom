@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Darkroom — Film Negative Converter</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js" crossorigin="anonymous"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -708,14 +709,14 @@
   </div><!-- /workspace -->
 </div><!-- /body -->
 
-<!-- Progress modal -->
+<!-- Progress modal (shared for HEIC conversion + export) -->
 <div id="progress-modal">
   <div class="progress-box">
-    <div class="progress-title">Exporting…</div>
+    <div class="progress-title" id="progress-title">Working…</div>
     <div class="progress-bar-track">
       <div class="progress-bar-fill" id="progress-fill"></div>
     </div>
-    <div class="progress-count" id="progress-count">0 / 0</div>
+    <div class="progress-count" id="progress-count"></div>
     <div class="progress-file"  id="progress-file">Preparing…</div>
   </div>
 </div>
@@ -900,44 +901,121 @@ $('workspace').addEventListener('drop', e => {
   if (e.dataTransfer.files.length) loadFiles(e.dataTransfer.files);
 });
 
-function loadFiles(fileList) {
-  const files = Array.from(fileList).filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
+// ── HEIC detection ───────────────────────────────────────
+function isHeic(file) {
+  return /\.(heic|heif)$/i.test(file.name) ||
+         file.type === 'image/heic' || file.type === 'image/heif';
+}
+
+// ── Load a single file → HTMLImageElement ─────────────────
+// HEIC: decoded via heic2any → Blob → object URL
+// Other: read as data URL (no extra library needed)
+async function fileToImage(file) {
+  let src, objectUrl = null;
+
+  if (isHeic(file)) {
+    const raw = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.95 });
+    const blob = Array.isArray(raw) ? raw[0] : raw;
+    src = objectUrl = URL.createObjectURL(blob);
+  } else {
+    src = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload  = e => res(e.target.result);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+  }
+
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload  = () => { res(img); if (objectUrl) URL.revokeObjectURL(objectUrl); };
+    img.onerror = ()  => { rej(new Error('decode failed')); if (objectUrl) URL.revokeObjectURL(objectUrl); };
+    img.src = src;
+  });
+}
+
+// ── Load multiple files with progress modal ───────────────
+async function loadFiles(fileList) {
+  const files = Array.from(fileList).filter(f =>
+    f.type.startsWith('image/') || /\.(heic|heif|jpe?g|png|webp|tiff?)$/i.test(f.name)
+  );
   if (!files.length) return;
 
-  let loaded = 0;
   const firstNewIdx = images.length;
+  const total    = files.length;
+  const heicCnt  = files.filter(isHeic).length;
 
-  files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const img = new Image();
-      img.onload = () => {
-        const w = img.naturalWidth, h = img.naturalHeight;
-        const tmpCanvas = document.createElement('canvas');
-        tmpCanvas.width = w; tmpCanvas.height = h;
-        tmpCanvas.getContext('2d').drawImage(img, 0, 0);
-        const originalData = tmpCanvas.getContext('2d').getImageData(0, 0, w, h);
-        const thumbUrl = makeThumb(img, 80, 60);
+  // Show modal whenever there are HEIC files (conversion is slow)
+  // or loading more than 5 files (give visual feedback)
+  const showModal = heicCnt > 0 || total > 5;
+  if (showModal) {
+    const title = heicCnt > 0
+      ? `Converting ${heicCnt} HEIC file${heicCnt > 1 ? 's' : ''}…`
+      : 'Loading files…';
+    showProgressModal(title);
+  }
 
-        // New image inherits current S as its starting settings
-        images.push({ name: file.name, originalData, thumbUrl, width: w, height: h, settings: Object.assign({}, S) });
+  let done = 0, failed = 0;
 
-        loaded++;
-        if (loaded === files.length) {
-          if (currentIdx === -1) {
-            $('drop-zone').style.display = 'none';
-            $('workspace').classList.add('active');
-          }
-          updateQueueUI();
-          renderFilmstrip();
-          selectImage(firstNewIdx);
-        }
-      };
-      img.onerror = () => { loaded++; };
-      img.src = ev.target.result;
-    };
-    reader.readAsDataURL(file);
-  });
+  // Process sequentially — HEIC decoding is memory-intensive; parallel
+  // batches of 62 large files can exhaust the heap.
+  for (const file of files) {
+    updateProgressModal(done, total, file.name);
+
+    try {
+      const imgEl = await fileToImage(file);
+
+      const w = imgEl.naturalWidth, h = imgEl.naturalHeight;
+      const tmp = document.createElement('canvas');
+      tmp.width = w; tmp.height = h;
+      tmp.getContext('2d').drawImage(imgEl, 0, 0);
+      const originalData = tmp.getContext('2d').getImageData(0, 0, w, h);
+      const thumbUrl     = makeThumb(imgEl, 80, 60);
+
+      images.push({ name: file.name, originalData, thumbUrl, width: w, height: h, settings: Object.assign({}, S) });
+    } catch (err) {
+      console.error(`Could not load "${file.name}":`, err);
+      failed++;
+    }
+
+    done++;
+    updateProgressModal(done, total, file.name);
+  }
+
+  if (showModal) hideProgressModal();
+
+  if (images.length > firstNewIdx) {
+    if (currentIdx === -1) {
+      $('drop-zone').style.display = 'none';
+      $('workspace').classList.add('active');
+    }
+    updateQueueUI();
+    renderFilmstrip();
+    selectImage(firstNewIdx);
+  }
+
+  if (failed > 0) alert(`${failed} file(s) could not be loaded.`);
+}
+
+// ── Shared progress modal helpers ─────────────────────────
+function showProgressModal(title) {
+  $('progress-title').textContent = title;
+  $('progress-fill').style.width  = '0%';
+  $('progress-count').textContent = '';
+  $('progress-file').textContent  = '';
+  $('progress-modal').classList.add('show');
+}
+
+function updateProgressModal(done, total, filename) {
+  const pct = total > 0 ? (done / total) * 100 : 0;
+  $('progress-fill').style.width  = Math.min(pct, 99).toFixed(1) + '%';
+  $('progress-count').textContent = `${done} of ${total}`;
+  $('progress-file').textContent  = filename;
+}
+
+function hideProgressModal() {
+  $('progress-modal').classList.remove('show');
+  $('progress-fill').style.width = '0%';
 }
 
 function makeThumb(img, maxW, maxH) {
@@ -1375,21 +1453,13 @@ function exportCurrent() {
 async function exportAll() {
   if (images.length === 0) return;
 
-  const modal    = $('progress-modal');
-  const fillEl   = $('progress-fill');
-  const countEl  = $('progress-count');
-  const fileEl   = $('progress-file');
-  const total    = images.length;
-  modal.classList.add('show');
+  const total = images.length;
+  showProgressModal(`Exporting ${total} photo${total > 1 ? 's' : ''}…`);
 
   const zip = new JSZip();
 
   for (let i = 0; i < total; i++) {
-    const pct = i / total;
-    fillEl.style.width = (pct * 90).toFixed(1) + '%';
-    countEl.textContent = `${i + 1} of ${total}`;
-    fileEl.textContent  = images[i].name;
-
+    updateProgressModal(i, total, images[i].name);
     await new Promise(r => setTimeout(r, 0));  // yield to repaint
 
     const result = runPipeline(images[i].originalData, images[i].settings);
@@ -1397,17 +1467,14 @@ async function exportAll() {
     zip.file(images[i].name.replace(/\.[^.]+$/, '') + '_positive.jpg', blob);
   }
 
-  countEl.textContent = `${total} of ${total}`;
-  fileEl.textContent  = 'Generating ZIP…';
-  fillEl.style.width  = '95%';
+  updateProgressModal(total, total, 'Generating ZIP…');
   await new Promise(r => setTimeout(r, 0));
 
   const content = await zip.generateAsync({ type: 'blob' }, meta => {
-    fillEl.style.width = (95 + meta.percent * 0.05).toFixed(1) + '%';
+    $('progress-fill').style.width = (99 + meta.percent * 0.01).toFixed(1) + '%';
   });
 
-  modal.classList.remove('show');
-  fillEl.style.width = '0%';
+  hideProgressModal();
 
   const a = document.createElement('a');
   a.href = URL.createObjectURL(content);
