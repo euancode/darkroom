@@ -131,17 +131,22 @@
     #preview-area {
       flex: 1;
       background: #050505;
-      display: flex; align-items: center; justify-content: center;
-      overflow: hidden; position: relative; min-height: 0;
+      overflow: hidden;
+      position: relative;
+      min-height: 0;
+      cursor: grab;
+      user-select: none;
     }
+    #preview-area.panning { cursor: grabbing; }
 
-    #canvas-wrap { position: relative; line-height: 0; max-width: 100%; max-height: 100%; }
-
-    #output-canvas { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+    #output-canvas {
+      position: absolute; top: 0; left: 0;
+      display: block;
+      /* width/height attributes set by JS to match container */
+    }
 
     #before-canvas {
       position: absolute; top: 0; left: 0;
-      width: 100%; height: 100%;
       display: none; pointer-events: none;
     }
 
@@ -166,6 +171,52 @@
     }
     #lbl-before { left: 10px; }
     #lbl-after  { right: 10px; }
+
+    /* ── Minimap ─────────────────────────────────────────── */
+    #minimap-wrap {
+      position: absolute; bottom: 12px; right: 12px;
+      z-index: 10;
+      display: none;
+      border: 1px solid rgba(201,169,110,0.45);
+      border-radius: 3px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.7);
+      cursor: crosshair;
+    }
+    #minimap-canvas { display: block; }
+
+    /* ── Zoom controls ───────────────────────────────────── */
+    #zoom-controls {
+      position: absolute; bottom: 12px; left: 12px;
+      display: none;
+      align-items: center;
+      gap: 4px;
+      z-index: 10;
+    }
+
+    .zoom-btn {
+      width: 26px; height: 26px;
+      background: rgba(10,10,10,0.82);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 15px; line-height: 1;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .zoom-btn:hover { background: rgba(40,40,40,0.95); border-color: var(--muted); }
+
+    #zoom-level {
+      padding: 0 8px; height: 26px;
+      background: rgba(10,10,10,0.82);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 4px;
+      font-size: 10px; color: var(--muted2);
+      display: flex; align-items: center;
+      font-variant-numeric: tabular-nums; letter-spacing: 0.03em;
+      min-width: 42px; justify-content: center;
+    }
 
     /* ── Queue bar ───────────────────────────────────────── */
     #queue-bar {
@@ -438,12 +489,19 @@
 
       <!-- Preview -->
       <div id="preview-area">
-        <div id="canvas-wrap">
-          <canvas id="output-canvas"></canvas>
-          <canvas id="before-canvas"></canvas>
-          <div id="split-handle"></div>
-          <div class="view-label" id="lbl-before">NEGATIVE</div>
-          <div class="view-label" id="lbl-after">POSITIVE</div>
+        <canvas id="output-canvas"></canvas>
+        <canvas id="before-canvas"></canvas>
+        <div id="split-handle"></div>
+        <div class="view-label" id="lbl-before">NEGATIVE</div>
+        <div class="view-label" id="lbl-after">POSITIVE</div>
+        <div id="minimap-wrap">
+          <canvas id="minimap-canvas"></canvas>
+        </div>
+        <div id="zoom-controls">
+          <button class="zoom-btn" onclick="fitToWindow()" title="Fit to window">⊡</button>
+          <button class="zoom-btn" onclick="zoomIn()" title="Zoom in">+</button>
+          <button class="zoom-btn" onclick="zoomOut()" title="Zoom out">−</button>
+          <div id="zoom-level">100%</div>
         </div>
       </div>
 
@@ -761,16 +819,26 @@ let draggingSplit = false;
 let processTimer  = null;
 let processing    = false;
 
+// Pan/zoom state
+let processedCanvas = null;
+let viewZoom = 1, viewPanX = 0, viewPanY = 0, fitZoom = 1;
+let panning = false, panSX = 0, panSY = 0, panVX = 0, panVY = 0;
+let minimapDragging = false;
+
 // ════════════════════════════════════════════════════════════
 //  DOM refs
 // ════════════════════════════════════════════════════════════
 const $ = id => document.getElementById(id);
-const outCanvas  = $('output-canvas');
-const befCanvas  = $('before-canvas');
-const outCtx     = outCanvas.getContext('2d', { willReadFrequently: true });
-const befCtx     = befCanvas.getContext('2d');
-const histCanvas = $('hist-canvas');
-const histCtx    = histCanvas.getContext('2d');
+const outCanvas     = $('output-canvas');
+const befCanvas     = $('before-canvas');
+const outCtx        = outCanvas.getContext('2d', { willReadFrequently: true });
+const befCtx        = befCanvas.getContext('2d');
+const histCanvas    = $('hist-canvas');
+const histCtx       = histCanvas.getContext('2d');
+const previewArea   = $('preview-area');
+const minimapWrap   = $('minimap-wrap');
+const minimapCanvas = $('minimap-canvas');
+const minimapCtx    = minimapCanvas.getContext('2d');
 
 // ════════════════════════════════════════════════════════════
 //  Slider wiring
@@ -802,6 +870,153 @@ function fmt(id, v) {
   if (['baseR','baseG','baseB','blacks','whites','rLift','gLift','bLift'].includes(id))
     return v.toFixed(3);
   return v.toFixed(2);
+}
+
+// ════════════════════════════════════════════════════════════
+//  Pan / Zoom viewer
+// ════════════════════════════════════════════════════════════
+const MM_W = 160, MM_H = 120;
+
+function syncDisplayCanvas() {
+  const cw = previewArea.clientWidth, ch = previewArea.clientHeight;
+  if (outCanvas.width !== cw || outCanvas.height !== ch) {
+    outCanvas.width = cw; outCanvas.height = ch;
+  }
+}
+
+function fitToWindow() {
+  if (currentIdx < 0) return;
+  const img = images[currentIdx];
+  const cw = previewArea.clientWidth || 1, ch = previewArea.clientHeight || 1;
+  fitZoom  = Math.min(cw / img.width, ch / img.height);
+  viewZoom = fitZoom;
+  viewPanX = img.width  / 2;
+  viewPanY = img.height / 2;
+  if (processedCanvas) renderView();
+}
+
+function clampZoom(z) { return Math.max(fitZoom * 0.25, Math.min(z, 32)); }
+function zoomIn()  { zoomAt(previewArea.clientWidth / 2, previewArea.clientHeight / 2,  1.25); }
+function zoomOut() { zoomAt(previewArea.clientWidth / 2, previewArea.clientHeight / 2, 1/1.25); }
+
+function zoomAt(mx, my, factor) {
+  if (currentIdx < 0) return;
+  const cw = outCanvas.width, ch = outCanvas.height;
+  const imgX = viewPanX + (mx - cw / 2) / viewZoom;
+  const imgY = viewPanY + (my - ch / 2) / viewZoom;
+  viewZoom = clampZoom(viewZoom * factor);
+  viewPanX = imgX - (mx - cw / 2) / viewZoom;
+  viewPanY = imgY - (my - ch / 2) / viewZoom;
+  renderView();
+}
+
+function renderView() {
+  if (!processedCanvas || currentIdx < 0) return;
+  const img = images[currentIdx];
+  const iw = img.width, ih = img.height;
+  syncDisplayCanvas();
+  const cw = outCanvas.width, ch = outCanvas.height;
+  if (!cw || !ch) return;
+
+  // Clamp pan to keep image filling view
+  const halfW = cw / (2 * viewZoom), halfH = ch / (2 * viewZoom);
+  viewPanX = Math.max(halfW, Math.min(iw - halfW, viewPanX));
+  viewPanY = Math.max(halfH, Math.min(ih - halfH, viewPanY));
+
+  const sx = viewPanX - halfW, sy = viewPanY - halfH;
+  const sw = cw / viewZoom,    sh = ch / viewZoom;
+
+  outCtx.clearRect(0, 0, cw, ch);
+
+  if (splitMode) {
+    const splitX = Math.round(splitPos * cw);
+    outCtx.drawImage(processedCanvas, sx, sy, sw, sh, 0, 0, cw, ch);
+    outCtx.save();
+    outCtx.beginPath(); outCtx.rect(0, 0, splitX, ch); outCtx.clip();
+    outCtx.drawImage(befCanvas, sx, sy, sw, sh, 0, 0, cw, ch);
+    outCtx.restore();
+    outCtx.strokeStyle = '#c9a96e'; outCtx.lineWidth = 2;
+    outCtx.beginPath(); outCtx.moveTo(splitX, 0); outCtx.lineTo(splitX, ch); outCtx.stroke();
+  } else {
+    outCtx.drawImage(processedCanvas, sx, sy, sw, sh, 0, 0, cw, ch);
+  }
+
+  drawMinimap();
+  $('zoom-level').textContent = Math.round(viewZoom * 100) + '%';
+}
+
+function drawMinimap() {
+  if (!processedCanvas || currentIdx < 0) return;
+  const img = images[currentIdx];
+  const iw = img.width, ih = img.height;
+  const scale = Math.min(MM_W / iw, MM_H / ih);
+  const tw = Math.round(iw * scale), th = Math.round(ih * scale);
+  const ox = Math.round((MM_W - tw) / 2), oy = Math.round((MM_H - th) / 2);
+
+  minimapCanvas.width = MM_W; minimapCanvas.height = MM_H;
+  minimapCtx.fillStyle = '#0a0a0a';
+  minimapCtx.fillRect(0, 0, MM_W, MM_H);
+  minimapCtx.drawImage(processedCanvas, ox, oy, tw, th);
+
+  const cw = outCanvas.width, ch = outCanvas.height;
+  const halfW = cw / (2 * viewZoom), halfH = ch / (2 * viewZoom);
+  const vx = ox + Math.max(0, (viewPanX - halfW) / iw) * tw;
+  const vy = oy + Math.max(0, (viewPanY - halfH) / ih) * th;
+  const vw = Math.min(cw / viewZoom, iw) / iw * tw;
+  const vh = Math.min(ch / viewZoom, ih) / ih * th;
+
+  minimapCtx.fillStyle   = 'rgba(201,169,110,0.12)';
+  minimapCtx.fillRect(vx, vy, vw, vh);
+  minimapCtx.strokeStyle = 'rgba(201,169,110,0.9)';
+  minimapCtx.lineWidth   = 1.5;
+  minimapCtx.strokeRect(vx, vy, vw, vh);
+
+  minimapWrap.style.display = (viewZoom > fitZoom * 1.05) ? 'block' : 'none';
+}
+
+new ResizeObserver(() => {
+  if (currentIdx >= 0 && processedCanvas) renderView();
+}).observe(previewArea);
+
+previewArea.addEventListener('mousedown', e => {
+  if (draggingSplit || !processedCanvas) return;
+  panning = true;
+  panSX = e.clientX; panSY = e.clientY; panVX = viewPanX; panVY = viewPanY;
+  previewArea.classList.add('panning');
+});
+document.addEventListener('mousemove', e => {
+  if (!panning) return;
+  viewPanX = panVX - (e.clientX - panSX) / viewZoom;
+  viewPanY = panVY - (e.clientY - panSY) / viewZoom;
+  renderView();
+});
+document.addEventListener('mouseup', () => {
+  if (panning) { panning = false; previewArea.classList.remove('panning'); }
+});
+
+previewArea.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = previewArea.getBoundingClientRect();
+  zoomAt(e.clientX - rect.left, e.clientY - rect.top, e.deltaY < 0 ? 1.15 : 1 / 1.15);
+}, { passive: false });
+
+minimapWrap.addEventListener('mousedown', e => {
+  minimapDragging = true; moveMinimapTo(e); e.stopPropagation();
+});
+document.addEventListener('mousemove', e => { if (minimapDragging) moveMinimapTo(e); });
+document.addEventListener('mouseup', () => { minimapDragging = false; });
+
+function moveMinimapTo(e) {
+  if (currentIdx < 0) return;
+  const rect = minimapCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const img = images[currentIdx];
+  const scale = Math.min(MM_W / img.width, MM_H / img.height);
+  const tw = img.width * scale, th = img.height * scale;
+  const ox = (MM_W - tw) / 2, oy = (MM_H - th) / 2;
+  viewPanX = ((mx - ox) / tw) * img.width;
+  viewPanY = ((my - oy) / th) * img.height;
+  renderView();
 }
 
 // Write a single setting value to the appropriate images
@@ -1096,20 +1311,33 @@ function selectImage(idx) {
 
   const img = images[idx];
 
-  outCanvas.width  = befCanvas.width  = img.width;
-  outCanvas.height = befCanvas.height = img.height;
+  // Set processedCanvas to full image resolution
+  if (!processedCanvas) processedCanvas = document.createElement('canvas');
+  processedCanvas.width  = img.width;
+  processedCanvas.height = img.height;
 
-  // Draw original into before-canvas for split view
+  // Fill befCanvas with original pixel data (full resolution, off-screen)
+  befCanvas.width  = img.width;
+  befCanvas.height = img.height;
   const tmp = document.createElement('canvas');
   tmp.width = img.width; tmp.height = img.height;
   tmp.getContext('2d').putImageData(img.originalData, 0, 0);
   befCtx.drawImage(tmp, 0, 0);
+
+  // Set fit-zoom for this image
+  syncDisplayCanvas();
+  const cw = previewArea.clientWidth || 1, ch = previewArea.clientHeight || 1;
+  fitZoom  = Math.min(cw / img.width, ch / img.height);
+  viewZoom = fitZoom;
+  viewPanX = img.width  / 2;
+  viewPanY = img.height / 2;
 
   // Load this image's settings into sliders (without writing back to images)
   loadSettingsIntoUI(img.settings);
 
   $('image-info').style.display = 'inline';
   $('image-info').textContent = `${img.name}  ·  ${img.width} × ${img.height}`;
+  $('zoom-controls').style.display = 'flex';
 
   $('filmstrip').querySelectorAll('.film-item').forEach((el, i) => {
     el.classList.toggle('active', i === idx);
@@ -1131,8 +1359,11 @@ function processImage() {
   processing = true;
   setTimeout(() => {
     const result = runPipeline(images[currentIdx].originalData, images[currentIdx].settings);
-    outCtx.putImageData(result, 0, 0);
-    updateSplitOverlay();
+    if (!processedCanvas) processedCanvas = document.createElement('canvas');
+    processedCanvas.width  = result.width;
+    processedCanvas.height = result.height;
+    processedCanvas.getContext('2d').putImageData(result, 0, 0);
+    renderView();
     drawHistogram(result.data);
     processing = false;
   }, 0);
@@ -1323,11 +1554,13 @@ function autoLevels() {
   if (currentIdx < 0) return;
   autoDetectBase();
   setTimeout(() => {
-    const pixels = outCtx.getImageData(0, 0, outCanvas.width, outCanvas.height).data;
+    if (!processedCanvas) return;
+    const pCtx = processedCanvas.getContext('2d');
+    const pixels = pCtx.getImageData(0, 0, processedCanvas.width, processedCanvas.height).data;
     const lH = new Uint32Array(256);
     for (let i=0;i<pixels.length;i+=4)
       lH[(0.299*pixels[i]+0.587*pixels[i+1]+0.114*pixels[i+2])|0]++;
-    const clipN = outCanvas.width*outCanvas.height*0.001;
+    const clipN = processedCanvas.width*processedCanvas.height*0.001;
     let black=0,white=255,cum=0;
     for (let i=0;i<256;i++){cum+=lH[i];if(cum>clipN){black=i;break;}}
     cum=0;
@@ -1372,21 +1605,19 @@ function histCurve(bins,peak,cw,ch,color){
 function toggleSplit() {
   splitMode = !splitMode;
   $('split-btn').classList.toggle('active', splitMode);
-  $('split-handle').style.display = splitMode?'block':'none';
-  $('lbl-before').style.display   = splitMode?'block':'none';
-  $('lbl-after').style.display    = splitMode?'block':'none';
-  befCanvas.style.display         = splitMode?'block':'none';
+  $('split-handle').style.display = splitMode ? 'block' : 'none';
+  $('lbl-before').style.display   = splitMode ? 'block' : 'none';
+  $('lbl-after').style.display    = splitMode ? 'block' : 'none';
   updateSplitOverlay();
+  renderView();
 }
 
 function updateSplitOverlay() {
   if (!splitMode) return;
-  const pct = splitPos*100;
-  befCanvas.style.clipPath    = `inset(0 ${(100-pct).toFixed(2)}% 0 0)`;
-  $('split-handle').style.left = pct+'%';
+  $('split-handle').style.left = (splitPos * 100) + '%';
 }
 
-$('split-handle').addEventListener('mousedown', e=>{draggingSplit=true;e.preventDefault();});
+$('split-handle').addEventListener('mousedown', e=>{draggingSplit=true;e.preventDefault();e.stopPropagation();});
 document.addEventListener('mousemove', e=>{
   if(!draggingSplit)return;
   const r=outCanvas.getBoundingClientRect();
@@ -1442,9 +1673,9 @@ function toggleSec(hdr) { hdr.closest('.sec').classList.toggle('collapsed'); }
 //  Export – single
 // ════════════════════════════════════════════════════════════
 function exportCurrent() {
-  if (currentIdx < 0) return;
+  if (currentIdx < 0 || !processedCanvas) return;
   const a = document.createElement('a');
-  a.href     = outCanvas.toDataURL('image/jpeg', 0.95);
+  a.href     = processedCanvas.toDataURL('image/jpeg', 0.95);
   a.download = images[currentIdx].name.replace(/\.[^.]+$/, '') + '_positive.jpg';
   a.click();
 }
