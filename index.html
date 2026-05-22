@@ -495,7 +495,7 @@
   <div class="logo-circle"></div>
   <span class="app-name">DARKROOM</span>
   <span class="app-sub">Film Negative Converter</span>
-  <span class="app-version">v1.6</span>
+  <span class="app-version">v1.7</span>
   <div class="header-sep"></div>
   <span id="image-info"></span>
   <button class="hdr-btn" onclick="document.getElementById('file-input').click()">Open Files</button>
@@ -1279,7 +1279,7 @@ function showProgressModal(title) {
 function updateProgressModal(done, total, filename) {
   const pct = total > 0 ? (done / total) * 100 : 0;
   $('progress-fill').style.width  = Math.min(pct, 99).toFixed(1) + '%';
-  $('progress-count').textContent = `${done} of ${total}`;
+  $('progress-count').textContent = total > 0 ? `${done} of ${total}` : '';
   $('progress-file').textContent  = filename;
 }
 
@@ -1890,7 +1890,7 @@ async function runColourise(apiKey) {
   const key    = apiKey.trim();
 
   showProgressModal('Colourising…');
-  updateProgressModal(0, 5, 'Preparing image…');
+  updateProgressModal(0, 0, 'Preparing image…');
 
   try {
     // Scale to max 1024px — colour is upsampled back to full-res at blend time
@@ -1901,37 +1901,12 @@ async function runColourise(apiKey) {
     const thumbC = document.createElement('canvas');
     thumbC.width = sw; thumbC.height = sh;
     thumbC.getContext('2d').drawImage(processedCanvas, 0, 0, sw, sh);
-    const blob = await new Promise(res => thumbC.toBlob(res, 'image/jpeg', 0.92));
+    // Use a data URI — Replicate decodes uri-typed inputs server-side,
+    // avoiding the need for a binary upload that CORS proxies can't forward.
+    const imageUrl = thumbC.toDataURL('image/jpeg', 0.92);
 
-    updateProgressModal(1, 5, 'Uploading image…');
+    updateProgressModal(0, 0, 'Starting AI…');
 
-    // Step 1: Upload binary image to Replicate storage — model needs an https:// URL
-    const fileRes = await rFetch('https://api.replicate.com/v1/files', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'image/jpeg',
-        'Content-Disposition': 'attachment; filename="source.jpg"',
-      },
-      body: blob,
-    });
-
-    if (!fileRes.ok) {
-      const j = await fileRes.json().catch(() => ({}));
-      if (fileRes.status === 401 || fileRes.status === 403) {
-        localStorage.removeItem('darkroom.replicateKey');
-        throw new Error('Invalid API key — key cleared, please re-enter.');
-      }
-      throw new Error(j.detail || j.error || `Upload failed: HTTP ${fileRes.status}`);
-    }
-
-    const fileData = await fileRes.json();
-    const imageUrl = fileData.urls?.get ?? fileData.url ?? fileData.urls?.download;
-    if (!imageUrl) throw new Error('Replicate file upload returned no URL.');
-
-    updateProgressModal(2, 5, 'Starting AI…');
-
-    // Step 2: Create prediction via the standard /v1/predictions endpoint
     const predRes = await rFetch('https://api.replicate.com/v1/predictions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -1952,9 +1927,9 @@ async function runColourise(apiKey) {
     }
 
     let prediction = await predRes.json();
-    updateProgressModal(3, 5, 'Processing…');
+    updateProgressModal(0, 0, 'Processing…');
 
-    // Step 3: Poll until complete (max ~3 min)
+    // Poll until complete (max ~3 min)
     let attempts = 0;
     while (prediction.status !== 'succeeded' && prediction.status !== 'failed') {
       if (++attempts > 120) throw new Error('Timed out after 3 minutes.');
@@ -1968,7 +1943,7 @@ async function runColourise(apiKey) {
 
     if (prediction.status === 'failed') throw new Error(prediction.error || 'Colourisation failed.');
 
-    updateProgressModal(4, 5, 'Applying colour…');
+    updateProgressModal(0, 0, 'Applying colour…');
 
     const outputUrl = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
     const colImg    = await fetchImageElement(outputUrl);
@@ -1978,8 +1953,6 @@ async function runColourise(apiKey) {
     colC.getContext('2d').drawImage(colImg, 0, 0);
     imgRec.colorizedCanvas = colC;
     imgRec.colorizeEnabled = true;
-
-    updateProgressModal(5, 5, 'Done.');
 
   } catch (err) {
     hideProgressModal();
