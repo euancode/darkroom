@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Darkroom — Film Negative Converter</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js" crossorigin="anonymous"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0c0c0c;
+      --surface: #161616;
+      --surface2: #1f1f1f;
+      --surface3: #2a2a2a;
+      --border: #303030;
+      --border2: #252525;
+      --text: #d8d8d8;
+      --muted: #5a5a5a;
+      --muted2: #888;
+      --accent: #c9a96e;
+      --accent-dim: #7a5f2a;
+      --accent-bg: rgba(201,169,110,0.08);
+      --red: #d96060;
+      --green: #60c870;
+      --blue: #6090d8;
+      --r-bg: rgba(217,96,96,0.12);
+      --g-bg: rgba(96,200,112,0.12);
+      --b-bg: rgba(96,144,216,0.12);
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+      font-size: 12px;
+      line-height: 1.4;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .logo-circle {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #e8c07a 0%, #7a4d0a 60%, #2a1500 100%);
+      flex-shrink: 0;
+    }
+
+    .app-name { font-size: 13px; font-weight: 700; letter-spacing: 0.12em; color: var(--accent); }
+    .app-sub     { font-size: 10px; color: var(--muted); letter-spacing: 0.05em; }
+    .app-version { font-size: 9px; color: var(--muted); letter-spacing: 0.04em; margin-left: -4px; align-self: flex-end; padding-bottom: 1px; }
+    .header-sep { flex: 1; }
+
+    #image-info { font-size: 10px; color: var(--muted2); display: none; }
+
+    .hdr-btn {
+      padding: 5px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: background 0.12s, border-color 0.12s;
+      white-space: nowrap;
+    }
+    .hdr-btn:hover { background: var(--surface3); }
+
+    .hdr-btn-primary {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: #f0d8a8;
+    }
+    .hdr-btn-primary:hover { background: var(--accent); color: #1a0a00; }
+    .hdr-btn-primary:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+
+    /* ── Layout body ─────────────────────────────────────── */
+    #body { flex: 1; display: flex; overflow: hidden; }
+
+    /* ── Drop zone ───────────────────────────────────────── */
+    #drop-zone {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      border: 1.5px dashed var(--border);
+      margin: 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: border-color 0.18s, background 0.18s;
+      user-select: none;
+    }
+    #drop-zone:hover, #drop-zone.drag-over { border-color: var(--accent); background: var(--accent-bg); }
+    .dz-icon { opacity: 0.25; }
+    .dz-title { font-size: 15px; font-weight: 600; color: var(--text); }
+    .dz-sub   { font-size: 11px; color: var(--muted2); text-align: center; line-height: 1.8; }
+    .dz-btn {
+      padding: 8px 20px;
+      background: var(--accent-dim); border: 1px solid var(--accent);
+      border-radius: 5px; color: #f0d8a8; font-size: 12px; cursor: pointer;
+    }
+    .dz-btn:hover { background: var(--accent); color: #1a0a00; }
+
+    /* ── Workspace ───────────────────────────────────────── */
+    #workspace { display: none; flex: 1; overflow: hidden; }
+    #workspace.active { display: flex; }
+
+    /* Left column */
+    #left-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+    /* ── Preview area ────────────────────────────────────── */
+    #preview-area {
+      flex: 1;
+      background: #050505;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; position: relative; min-height: 0;
+    }
+
+    #canvas-wrap { position: relative; line-height: 0; max-width: 100%; max-height: 100%; }
+
+    #output-canvas { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+
+    #before-canvas {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: none; pointer-events: none;
+    }
+
+    #split-handle {
+      position: absolute; top: 0; width: 2px; height: 100%;
+      background: var(--accent); cursor: ew-resize; display: none; z-index: 5;
+    }
+    #split-handle::after {
+      content: '◀ ▶';
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--accent); color: #1a0a00;
+      font-size: 9px; padding: 4px 5px;
+      border-radius: 10px; white-space: nowrap; letter-spacing: 2px;
+    }
+
+    .view-label {
+      position: absolute; top: 10px;
+      background: rgba(0,0,0,0.7); padding: 3px 8px; border-radius: 3px;
+      font-size: 10px; color: var(--muted2);
+      display: none; pointer-events: none; z-index: 6; letter-spacing: 0.08em;
+    }
+    #lbl-before { left: 10px; }
+    #lbl-after  { right: 10px; }
+
+    /* ── Queue bar ───────────────────────────────────────── */
+    #queue-bar {
+      height: 30px;
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    #queue-count {
+      font-size: 10px;
+      color: var(--muted2);
+      font-variant-numeric: tabular-nums;
+    }
+
+    #queue-count strong {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .queue-sep { flex: 1; }
+
+    /* Apply mode toggle */
+    #apply-mode-btn {
+      padding: 3px 10px;
+      border-radius: 3px;
+      font-size: 10px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface3);
+      color: var(--text);
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+      display: flex; align-items: center; gap: 5px;
+    }
+    #apply-mode-btn:hover { background: #383838; }
+    #apply-mode-btn.mode-all {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: #f0d8a8;
+    }
+
+    .apply-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: currentColor; display: inline-block;
+      opacity: 0.7;
+    }
+
+    /* ── Filmstrip ───────────────────────────────────────── */
+    #filmstrip {
+      height: 84px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 10px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      flex-shrink: 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+    #filmstrip::-webkit-scrollbar { height: 3px; }
+    #filmstrip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .film-item {
+      flex-shrink: 0;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      cursor: pointer; border-radius: 4px; padding: 3px;
+      border: 1.5px solid transparent;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .film-item:hover { background: var(--surface2); }
+    .film-item.active { border-color: var(--accent); background: rgba(201,169,110,0.1); }
+
+    .film-thumb-wrap {
+      position: relative; width: 64px; height: 48px;
+      background: #000; border-radius: 2px; overflow: hidden; flex-shrink: 0;
+    }
+    .film-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    /* Per-image indicator dot (shows settings differ from global S) */
+    .film-unique-dot {
+      position: absolute; top: 3px; right: 3px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent);
+      display: none;
+    }
+    .film-item.has-custom .film-unique-dot { display: block; }
+
+    .film-name {
+      font-size: 9px; color: var(--muted2);
+      max-width: 70px; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; text-align: center;
+    }
+
+    #film-add-btn {
+      flex-shrink: 0;
+      width: 64px; height: 68px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+      cursor: pointer; border: 1.5px dashed var(--border); border-radius: 4px;
+      color: var(--muted); font-size: 18px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    #film-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+    #film-add-btn span { font-size: 9px; color: var(--muted); }
+
+    /* ── Sidebar ─────────────────────────────────────────── */
+    #sidebar {
+      width: 272px;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      overflow: hidden; flex-shrink: 0;
+    }
+
+    #hist-wrap {
+      padding: 10px 12px 8px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    #hist-canvas { width: 100%; height: 56px; display: block; border-radius: 3px; }
+
+    #toolbar {
+      display: flex; gap: 5px; padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2); flex-wrap: wrap;
+    }
+
+    .tb-btn {
+      padding: 4px 9px;
+      background: var(--surface3); border: 1px solid var(--border); color: var(--text);
+      border-radius: 3px; cursor: pointer; font-size: 10px;
+      transition: background 0.1s, border-color 0.1s; letter-spacing: 0.03em;
+    }
+    .tb-btn:hover { background: #383838; border-color: var(--muted); }
+    .tb-btn.active { background: var(--accent-dim); border-color: var(--accent); color: #f0d8a8; }
+    .tb-sep { flex: 1; }
+
+    #controls {
+      flex: 1; overflow-y: auto;
+      scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+    }
+    #controls::-webkit-scrollbar { width: 5px; }
+    #controls::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .sec { border-bottom: 1px solid var(--border2); }
+    .sec-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 12px; cursor: pointer; user-select: none;
+    }
+    .sec-hdr:hover { background: var(--surface2); }
+    .sec-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted2); }
+    .sec-arrow { color: var(--muted); font-size: 13px; line-height: 1; transition: transform 0.15s; }
+    .sec.collapsed .sec-arrow { transform: rotate(-90deg); }
+    .sec-body { padding: 4px 12px 12px; }
+    .sec.collapsed .sec-body { display: none; }
+
+    .ctrl {
+      display: grid; grid-template-columns: minmax(0,1fr) 140px 38px;
+      align-items: center; gap: 6px; margin-bottom: 8px;
+    }
+    .ctrl:last-child { margin-bottom: 0; }
+    .ctrl-lbl { font-size: 10px; color: var(--muted2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ctrl-val  { font-size: 10px; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+
+    input[type=range] {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 3px; background: var(--surface3);
+      border-radius: 2px; outline: none; cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 11px; height: 11px; border-radius: 50%;
+      background: var(--accent); cursor: pointer; border: none; box-shadow: 0 0 0 2px var(--bg);
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 11px; height: 11px; border-radius: 50%;
+      background: var(--accent); cursor: pointer; border: none;
+    }
+    .sr::-webkit-slider-thumb { background: var(--red); }
+    .sg::-webkit-slider-thumb { background: var(--green); }
+    .sb::-webkit-slider-thumb { background: var(--blue); }
+    .sr::-moz-range-thumb { background: var(--red); }
+    .sg::-moz-range-thumb { background: var(--green); }
+    .sb::-moz-range-thumb { background: var(--blue); }
+
+    .ch-group { padding: 8px 9px; border-radius: 5px; margin-bottom: 8px; }
+    .ch-group:last-child { margin-bottom: 0; }
+    .ch-group-r { background: var(--r-bg); }
+    .ch-group-g { background: var(--g-bg); }
+    .ch-group-b { background: var(--b-bg); }
+    .ch-group-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 7px; }
+    .ch-group-r .ch-group-title { color: var(--red); }
+    .ch-group-g .ch-group-title { color: var(--green); }
+    .ch-group-b .ch-group-title { color: var(--blue); }
+
+    .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+    .preset-btn {
+      padding: 7px 5px;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text); font-size: 11px; cursor: pointer; text-align: center;
+      transition: background 0.1s, border-color 0.12s;
+    }
+    .preset-btn:hover { background: var(--surface3); border-color: var(--accent-dim); }
+    .preset-btn .pname { font-weight: 600; display: block; }
+    .preset-btn .psub  { font-size: 9px; color: var(--muted); display: block; margin-top: 2px; }
+
+    /* ── Progress modal ──────────────────────────────────── */
+    #progress-modal {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.72);
+      align-items: center; justify-content: center; z-index: 100;
+    }
+    #progress-modal.show { display: flex; }
+
+    .progress-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 28px 32px; width: 340px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .progress-title { font-size: 14px; font-weight: 600; color: var(--accent); letter-spacing: 0.05em; }
+    .progress-bar-track { height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.18s; width: 0%; }
+    .progress-count  { font-size: 13px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+    .progress-file   { font-size: 10px; color: var(--muted2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    input[type=file] { display: none; }
+    * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-circle"></div>
+  <span class="app-name">DARKROOM</span>
+  <span class="app-sub">Film Negative Converter</span>
+  <span class="app-version">v1.3</span>
+  <div class="header-sep"></div>
+  <span id="image-info"></span>
+  <button class="hdr-btn" onclick="document.getElementById('file-input').click()">Open Files</button>
+  <button class="hdr-btn hdr-btn-primary" id="export-btn"     disabled onclick="exportCurrent()">Export</button>
+  <button class="hdr-btn hdr-btn-primary" id="export-all-btn" disabled onclick="exportAll()">Export All</button>
+</header>
+
+<div id="body">
+
+  <!-- Drop zone -->
+  <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+    <svg class="dz-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+      <rect x="2" y="2" width="20" height="20" rx="2"/>
+      <path d="M2 16l5.5-5.5 4 4 3.5-3.5L21 17" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="8" cy="8" r="1.5"/>
+    </svg>
+    <div class="dz-title">Drop film negatives here</div>
+    <div class="dz-sub">
+      JPEG · PNG · WebP · TIFF · HEIC · Single or multiple files<br>
+      Color or Black &amp; White negatives
+    </div>
+    <div class="dz-btn">Browse Files</div>
+  </div>
+
+  <!-- Workspace -->
+  <div id="workspace">
+
+    <div id="left-col">
+
+      <!-- Preview -->
+      <div id="preview-area">
+        <div id="canvas-wrap">
+          <canvas id="output-canvas"></canvas>
+          <canvas id="before-canvas"></canvas>
+          <div id="split-handle"></div>
+          <div class="view-label" id="lbl-before">NEGATIVE</div>
+          <div class="view-label" id="lbl-after">POSITIVE</div>
+        </div>
+      </div>
+
+      <!-- Queue bar: count + apply mode -->
+      <div id="queue-bar">
+        <span id="queue-count"><strong>0</strong> photo</span>
+        <div class="queue-sep"></div>
+        <button id="apply-mode-btn" onclick="toggleApplyMode()" class="mode-all">
+          <span class="apply-dot"></span>
+          Apply to all images
+        </button>
+      </div>
+
+      <!-- Filmstrip -->
+      <div id="filmstrip">
+        <div id="film-add-btn" onclick="document.getElementById('file-input').click()" title="Add more images">
+          <span>+</span>
+          <span>Add</span>
+        </div>
+      </div>
+
+    </div><!-- /left-col -->
+
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <div id="hist-wrap">
+        <canvas id="hist-canvas" width="248" height="56"></canvas>
+      </div>
+
+      <div id="toolbar">
+        <button class="tb-btn" onclick="autoDetectBase()">Auto Base</button>
+        <button class="tb-btn" onclick="autoLevels()">Auto Levels</button>
+        <button class="tb-btn" id="split-btn" onclick="toggleSplit()">Split View</button>
+        <div class="tb-sep"></div>
+        <button class="tb-btn" onclick="resetAll()">Reset</button>
+      </div>
+
+      <div id="controls">
+
+        <!-- Presets -->
+        <div class="sec">
+          <div class="sec-hdr" onclick="toggleSec(this)">
+            <span class="sec-title">Presets</span><span class="sec-arrow">▾</span>
+          </div>
+          <div class="sec-body">
+            <div class="preset-grid">
+              <div class="preset-btn" onclick="applyPreset('c41')">
+                <span class="pname">C-41 Color</span><span class="psub">Standard neg film</span>
+              </div>
+              <div class="preset-btn" onclick="applyPreset('kodakgold')">
+                <span class="pname">Kodak Gold</span><span class="psub">Warm classic look</span>
+              </div>
+              <div class="preset-btn" onclick="applyPreset('fuji')">
+                <span class="pname">Fuji Pro</span><span class="psub">Cool neutral tones</span>
+              </div>
+              <div class="preset-btn" onclick="applyPreset('portra')">
+                <span class="pname">Portra 400</span><span class="psub">Soft skin tones</span>
+              </div>
+              <div class="preset-btn" onclick="applyPreset('bw')">
+                <span class="pname">B&amp;W Film</span><span class="psub">Monochrome neg</span>
+              </div>
+              <div class="preset-btn" onclick="applyPreset('neutral')">
+                <span class="pname">Neutral</span><span class="psub">Clean inversion</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Film Base -->
+        <div class="sec">
+          <div class="sec-hdr" onclick="toggleSec(this)">
+            <span class="sec-title">Film Base · Orange Mask</span><span class="sec-arrow">▾</span>
+          </div>
+          <div class="sec-body">
+            <div class="ctrl">
+              <label class="ctrl-lbl" style="color:var(--red)">Red Base</label>
+              <input type="range" id="baseR" class="sr" min="0.05" max="1.0" step="0.001" value="0.90">
+              <span class="ctrl-val" id="v-baseR">0.900</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl" style="color:var(--green)">Green Base</label>
+              <input type="range" id="baseG" class="sg" min="0.05" max="1.0" step="0.001" value="0.70">
+              <span class="ctrl-val" id="v-baseG">0.700</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl" style="color:var(--blue)">Blue Base</label>
+              <input type="range" id="baseB" class="sb" min="0.05" max="1.0" step="0.001" value="0.50">
+              <span class="ctrl-val" id="v-baseB">0.500</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tone -->
+        <div class="sec">
+          <div class="sec-hdr" onclick="toggleSec(this)">
+            <span class="sec-title">Tone</span><span class="sec-arrow">▾</span>
+          </div>
+          <div class="sec-body">
+            <div class="ctrl">
+              <label class="ctrl-lbl">Exposure (EV)</label>
+              <input type="range" id="exposure" min="-3" max="3" step="0.05" value="0">
+              <span class="ctrl-val" id="v-exposure">0.00</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Contrast</label>
+              <input type="range" id="contrast" min="-100" max="100" step="1" value="0">
+              <span class="ctrl-val" id="v-contrast">0</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Highlights</label>
+              <input type="range" id="highlights" min="-100" max="100" step="1" value="0">
+              <span class="ctrl-val" id="v-highlights">0</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Shadows</label>
+              <input type="range" id="shadows" min="-100" max="100" step="1" value="0">
+              <span class="ctrl-val" id="v-shadows">0</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Gamma</label>
+              <input type="range" id="gamma" min="0.30" max="3.00" step="0.01" value="1.00">
+              <span class="ctrl-val" id="v-gamma">1.00</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Blacks</label>
+              <input type="range" id="blacks" min="0" max="0.45" step="0.001" value="0">
+              <span class="ctrl-val" id="v-blacks">0.000</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Whites</label>
+              <input type="range" id="whites" min="0.55" max="1.0" step="0.001" value="1.0">
+              <span class="ctrl-val" id="v-whites">1.000</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Color -->
+        <div class="sec">
+          <div class="sec-hdr" onclick="toggleSec(this)">
+            <span class="sec-title">Color</span><span class="sec-arrow">▾</span>
+          </div>
+          <div class="sec-body">
+            <div class="ctrl">
+              <label class="ctrl-lbl">Saturation</label>
+              <input type="range" id="saturation" min="0" max="2.5" step="0.01" value="1.0">
+              <span class="ctrl-val" id="v-saturation">1.00</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Vibrance</label>
+              <input type="range" id="vibrance" min="-1" max="1" step="0.01" value="0">
+              <span class="ctrl-val" id="v-vibrance">0.00</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Temperature</label>
+              <input type="range" id="temperature" min="-100" max="100" step="1" value="0">
+              <span class="ctrl-val" id="v-temperature">0</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Tint (G↔M)</label>
+              <input type="range" id="tint" min="-100" max="100" step="1" value="0">
+              <span class="ctrl-val" id="v-tint">0</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Hue Shift</label>
+              <input type="range" id="hue" min="-180" max="180" step="1" value="0">
+              <span class="ctrl-val" id="v-hue">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Channel Curves -->
+        <div class="sec">
+          <div class="sec-hdr" onclick="toggleSec(this)">
+            <span class="sec-title">Channel Curves</span><span class="sec-arrow">▾</span>
+          </div>
+          <div class="sec-body">
+            <div class="ch-group ch-group-r">
+              <div class="ch-group-title">Red</div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Gamma</label>
+                <input type="range" id="rGamma" class="sr" min="0.30" max="3.00" step="0.01" value="1.00">
+                <span class="ctrl-val" id="v-rGamma">1.00</span>
+              </div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Lift</label>
+                <input type="range" id="rLift" class="sr" min="-0.25" max="0.25" step="0.002" value="0">
+                <span class="ctrl-val" id="v-rLift">0.000</span>
+              </div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Gain</label>
+                <input type="range" id="rGain" class="sr" min="0.25" max="2.5" step="0.01" value="1.00">
+                <span class="ctrl-val" id="v-rGain">1.00</span>
+              </div>
+            </div>
+            <div class="ch-group ch-group-g">
+              <div class="ch-group-title">Green</div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Gamma</label>
+                <input type="range" id="gGamma" class="sg" min="0.30" max="3.00" step="0.01" value="1.00">
+                <span class="ctrl-val" id="v-gGamma">1.00</span>
+              </div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Lift</label>
+                <input type="range" id="gLift" class="sg" min="-0.25" max="0.25" step="0.002" value="0">
+                <span class="ctrl-val" id="v-gLift">0.000</span>
+              </div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Gain</label>
+                <input type="range" id="gGain" class="sg" min="0.25" max="2.5" step="0.01" value="1.00">
+                <span class="ctrl-val" id="v-gGain">1.00</span>
+              </div>
+            </div>
+            <div class="ch-group ch-group-b">
+              <div class="ch-group-title">Blue</div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Gamma</label>
+                <input type="range" id="bGamma" class="sb" min="0.30" max="3.00" step="0.01" value="1.00">
+                <span class="ctrl-val" id="v-bGamma">1.00</span>
+              </div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Lift</label>
+                <input type="range" id="bLift" class="sb" min="-0.25" max="0.25" step="0.002" value="0">
+                <span class="ctrl-val" id="v-bLift">0.000</span>
+              </div>
+              <div class="ctrl">
+                <label class="ctrl-lbl">Gain</label>
+                <input type="range" id="bGain" class="sb" min="0.25" max="2.5" step="0.01" value="1.00">
+                <span class="ctrl-val" id="v-bGain">1.00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Finish -->
+        <div class="sec">
+          <div class="sec-hdr" onclick="toggleSec(this)">
+            <span class="sec-title">Finish</span><span class="sec-arrow">▾</span>
+          </div>
+          <div class="sec-body">
+            <div class="ctrl">
+              <label class="ctrl-lbl">Clarity</label>
+              <input type="range" id="clarity" min="-1" max="1" step="0.01" value="0">
+              <span class="ctrl-val" id="v-clarity">0.00</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Sharpness</label>
+              <input type="range" id="sharpness" min="0" max="3" step="0.05" value="0">
+              <span class="ctrl-val" id="v-sharpness">0.00</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Grain Amount</label>
+              <input type="range" id="grain" min="0" max="50" step="0.5" value="0">
+              <span class="ctrl-val" id="v-grain">0.0</span>
+            </div>
+            <div class="ctrl">
+              <label class="ctrl-lbl">Vignette</label>
+              <input type="range" id="vignette" min="-1" max="1" step="0.01" value="0">
+              <span class="ctrl-val" id="v-vignette">0.00</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /controls -->
+    </div><!-- /sidebar -->
+  </div><!-- /workspace -->
+</div><!-- /body -->
+
+<!-- Progress modal (shared for HEIC conversion + export) -->
+<div id="progress-modal">
+  <div class="progress-box">
+    <div class="progress-title" id="progress-title">Working…</div>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+    <div class="progress-count" id="progress-count"></div>
+    <div class="progress-file"  id="progress-file">Preparing…</div>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept="image/*,image/heic,image/heif" multiple>
+
+<script>
+'use strict';
+
+// ════════════════════════════════════════════════════════════
+//  Settings helpers
+// ════════════════════════════════════════════════════════════
+function defaultSettings() {
+  return {
+    baseR: 0.90, baseG: 0.70, baseB: 0.50,
+    exposure: 0, contrast: 0, highlights: 0, shadows: 0,
+    gamma: 1.0, blacks: 0, whites: 1.0,
+    saturation: 1.0, vibrance: 0, temperature: 0, tint: 0, hue: 0,
+    rGamma: 1.0, rLift: 0.0, rGain: 1.0,
+    gGamma: 1.0, gLift: 0.0, gGain: 1.0,
+    bGamma: 1.0, bLift: 0.0, bGain: 1.0,
+    clarity: 0, sharpness: 0, grain: 0, vignette: 0,
+  };
+}
+
+// S = live slider state (what the UI shows)
+const S = defaultSettings();
+
+// ════════════════════════════════════════════════════════════
+//  App state
+// ════════════════════════════════════════════════════════════
+// images[i] = { name, originalData, thumbUrl, width, height, settings }
+let images      = [];
+let currentIdx  = -1;
+let applyMode   = 'all';   // 'all' | 'one'
+
+let splitMode     = false;
+let splitPos      = 0.5;
+let draggingSplit = false;
+let processTimer  = null;
+let processing    = false;
+
+// ════════════════════════════════════════════════════════════
+//  DOM refs
+// ════════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const outCanvas  = $('output-canvas');
+const befCanvas  = $('before-canvas');
+const outCtx     = outCanvas.getContext('2d', { willReadFrequently: true });
+const befCtx     = befCanvas.getContext('2d');
+const histCanvas = $('hist-canvas');
+const histCtx    = histCanvas.getContext('2d');
+
+// ════════════════════════════════════════════════════════════
+//  Slider wiring
+// ════════════════════════════════════════════════════════════
+const SLIDERS = [
+  'baseR','baseG','baseB',
+  'exposure','contrast','highlights','shadows','gamma','blacks','whites',
+  'saturation','vibrance','temperature','tint','hue',
+  'rGamma','rLift','rGain',
+  'gGamma','gLift','gGain',
+  'bGamma','bLift','bGain',
+  'clarity','sharpness','grain','vignette',
+];
+
+SLIDERS.forEach(id => {
+  const el  = $(id);
+  const vel = $('v-' + id);
+  el.addEventListener('input', () => {
+    S[id] = parseFloat(el.value);
+    vel.textContent = fmt(id, S[id]);
+    pushSettingsToImages(id, S[id]);
+    scheduleProcess();
+  });
+});
+
+function fmt(id, v) {
+  if (['contrast','highlights','shadows','temperature','tint','hue','grain'].includes(id))
+    return Math.round(v).toString();
+  if (['baseR','baseG','baseB','blacks','whites','rLift','gLift','bLift'].includes(id))
+    return v.toFixed(3);
+  return v.toFixed(2);
+}
+
+// Write a single setting value to the appropriate images
+function pushSettingsToImages(key, val) {
+  if (applyMode === 'all') {
+    images.forEach(img => { img.settings[key] = val; });
+  } else if (currentIdx >= 0) {
+    images[currentIdx].settings[key] = val;
+  }
+  updateFilmstripDots();
+}
+
+// Write all of S into the appropriate images
+function pushAllSettingsToImages() {
+  SLIDERS.forEach(k => pushSettingsToImages(k, S[k]));
+}
+
+// Set a slider value, update S, update image settings
+function setSlider(id, v) {
+  const el = $(id);
+  if (!el) return;
+  const clamped = Math.max(parseFloat(el.min), Math.min(parseFloat(el.max), v));
+  el.value = clamped;
+  S[id] = clamped;
+  $('v-' + id).textContent = fmt(id, clamped);
+  // Callers that call setSlider directly (presets, auto-detect, reset)
+  // then call pushAllSettingsToImages() themselves — do NOT push per key here
+  // to avoid N×M writes during batch updates.
+}
+
+// Load a settings object into S and all sliders (without pushing back to images)
+function loadSettingsIntoUI(settings) {
+  SLIDERS.forEach(k => {
+    const el = $(k), vel = $('v-' + k);
+    if (!el) return;
+    const v = settings[k];
+    const clamped = Math.max(parseFloat(el.min), Math.min(parseFloat(el.max), v));
+    el.value = clamped;
+    S[k] = clamped;
+    vel.textContent = fmt(k, clamped);
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  Apply mode toggle
+// ════════════════════════════════════════════════════════════
+function toggleApplyMode() {
+  applyMode = applyMode === 'all' ? 'one' : 'all';
+
+  if (applyMode === 'all') {
+    // Sync every image to the current UI settings
+    images.forEach(img => { img.settings = Object.assign({}, S); });
+    updateFilmstripDots();
+  }
+
+  const btn = $('apply-mode-btn');
+  if (applyMode === 'all') {
+    btn.classList.add('mode-all');
+    btn.innerHTML = '<span class="apply-dot"></span>Apply to all images';
+  } else {
+    btn.classList.remove('mode-all');
+    btn.innerHTML = '<span class="apply-dot"></span>Apply to this image only';
+  }
+}
+
+// Show amber dot on filmstrip items whose settings differ from S
+function updateFilmstripDots() {
+  if (applyMode === 'all') {
+    // All items share S, no dots needed
+    document.querySelectorAll('.film-item').forEach(el => el.classList.remove('has-custom'));
+    return;
+  }
+  document.querySelectorAll('.film-item[data-idx]').forEach(el => {
+    const idx = parseInt(el.dataset.idx, 10);
+    if (isNaN(idx) || !images[idx]) return;
+    const different = SLIDERS.some(k => Math.abs(images[idx].settings[k] - S[k]) > 0.0001);
+    el.classList.toggle('has-custom', different && idx !== currentIdx);
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  File handling
+// ════════════════════════════════════════════════════════════
+$('file-input').addEventListener('change', e => {
+  if (e.target.files.length) loadFiles(e.target.files);
+  e.target.value = '';
+});
+
+$('drop-zone').addEventListener('dragover', e => { e.preventDefault(); $('drop-zone').classList.add('drag-over'); });
+$('drop-zone').addEventListener('dragleave', () => $('drop-zone').classList.remove('drag-over'));
+$('drop-zone').addEventListener('drop', e => {
+  e.preventDefault(); $('drop-zone').classList.remove('drag-over');
+  if (e.dataTransfer.files.length) loadFiles(e.dataTransfer.files);
+});
+
+$('workspace').addEventListener('dragover', e => { e.preventDefault(); });
+$('workspace').addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.dataTransfer.files.length) loadFiles(e.dataTransfer.files);
+});
+
+// ── HEIC detection ───────────────────────────────────────
+function isHeic(file) {
+  return /\.(heic|heif)$/i.test(file.name) ||
+         file.type === 'image/heic' || file.type === 'image/heif';
+}
+
+// ── Load a single file → HTMLImageElement ─────────────────
+// HEIC: decoded via heic2any → Blob → object URL
+// Other: read as data URL (no extra library needed)
+async function fileToImage(file) {
+  let src, objectUrl = null;
+
+  if (isHeic(file)) {
+    const raw = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.95 });
+    const blob = Array.isArray(raw) ? raw[0] : raw;
+    src = objectUrl = URL.createObjectURL(blob);
+  } else {
+    src = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload  = e => res(e.target.result);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+  }
+
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload  = () => { res(img); if (objectUrl) URL.revokeObjectURL(objectUrl); };
+    img.onerror = ()  => { rej(new Error('decode failed')); if (objectUrl) URL.revokeObjectURL(objectUrl); };
+    img.src = src;
+  });
+}
+
+// ── Load multiple files with progress modal ───────────────
+async function loadFiles(fileList) {
+  const files = Array.from(fileList).filter(f =>
+    f.type.startsWith('image/') || /\.(heic|heif|jpe?g|png|webp|tiff?)$/i.test(f.name)
+  );
+  if (!files.length) return;
+
+  const firstNewIdx = images.length;
+  const total    = files.length;
+  const heicCnt  = files.filter(isHeic).length;
+
+  // Show modal whenever there are HEIC files (conversion is slow)
+  // or loading more than 5 files (give visual feedback)
+  const showModal = heicCnt > 0 || total > 5;
+  if (showModal) {
+    const title = heicCnt > 0
+      ? `Converting ${heicCnt} HEIC file${heicCnt > 1 ? 's' : ''}…`
+      : 'Loading files…';
+    showProgressModal(title);
+  }
+
+  let done = 0, failed = 0;
+
+  // Process sequentially — HEIC decoding is memory-intensive; parallel
+  // batches of 62 large files can exhaust the heap.
+  for (const file of files) {
+    updateProgressModal(done, total, file.name);
+
+    try {
+      const imgEl = await fileToImage(file);
+
+      const w = imgEl.naturalWidth, h = imgEl.naturalHeight;
+      const tmp = document.createElement('canvas');
+      tmp.width = w; tmp.height = h;
+      tmp.getContext('2d').drawImage(imgEl, 0, 0);
+      const originalData = tmp.getContext('2d').getImageData(0, 0, w, h);
+      const thumbUrl     = makeThumb(imgEl, 80, 60);
+
+      images.push({ name: file.name, originalData, thumbUrl, width: w, height: h, settings: Object.assign({}, S) });
+    } catch (err) {
+      console.error(`Could not load "${file.name}":`, err);
+      failed++;
+    }
+
+    done++;
+    updateProgressModal(done, total, file.name);
+  }
+
+  if (showModal) hideProgressModal();
+
+  if (images.length > firstNewIdx) {
+    if (currentIdx === -1) {
+      $('drop-zone').style.display = 'none';
+      $('workspace').classList.add('active');
+    }
+    updateQueueUI();
+    renderFilmstrip();
+    selectImage(firstNewIdx);
+  }
+
+  if (failed > 0) alert(`${failed} file(s) could not be loaded.`);
+}
+
+// ── Shared progress modal helpers ─────────────────────────
+function showProgressModal(title) {
+  $('progress-title').textContent = title;
+  $('progress-fill').style.width  = '0%';
+  $('progress-count').textContent = '';
+  $('progress-file').textContent  = '';
+  $('progress-modal').classList.add('show');
+}
+
+function updateProgressModal(done, total, filename) {
+  const pct = total > 0 ? (done / total) * 100 : 0;
+  $('progress-fill').style.width  = Math.min(pct, 99).toFixed(1) + '%';
+  $('progress-count').textContent = `${done} of ${total}`;
+  $('progress-file').textContent  = filename;
+}
+
+function hideProgressModal() {
+  $('progress-modal').classList.remove('show');
+  $('progress-fill').style.width = '0%';
+}
+
+function makeThumb(img, maxW, maxH) {
+  const ratio = img.naturalWidth / img.naturalHeight;
+  let tw = maxW, th = maxH;
+  if (ratio > maxW / maxH) th = maxW / ratio; else tw = maxH * ratio;
+  const c = document.createElement('canvas');
+  c.width = Math.round(tw); c.height = Math.round(th);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.7);
+}
+
+// ════════════════════════════════════════════════════════════
+//  Queue UI (count badge + export button labels)
+// ════════════════════════════════════════════════════════════
+function updateQueueUI() {
+  const n = images.length;
+  const countEl = $('queue-count');
+  countEl.innerHTML = `<strong>${n}</strong> ${n === 1 ? 'photo' : 'photos'} loaded`;
+
+  $('export-btn').disabled = n === 0;
+  const allBtn = $('export-all-btn');
+  allBtn.disabled = n === 0;
+  allBtn.textContent = n > 0 ? `Export All (${n})` : 'Export All';
+}
+
+// ════════════════════════════════════════════════════════════
+//  Filmstrip
+// ════════════════════════════════════════════════════════════
+function renderFilmstrip() {
+  const strip = $('filmstrip');
+  strip.querySelectorAll('.film-item').forEach(el => el.remove());
+  const addBtn = $('film-add-btn');
+
+  images.forEach((img, idx) => {
+    const item = document.createElement('div');
+    item.className = 'film-item' + (idx === currentIdx ? ' active' : '');
+    item.dataset.idx = idx;
+    item.title = img.name;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'film-thumb-wrap';
+
+    const thumb = document.createElement('img');
+    thumb.className = 'film-thumb';
+    thumb.src = img.thumbUrl;
+    thumb.draggable = false;
+
+    const dot = document.createElement('div');
+    dot.className = 'film-unique-dot';
+
+    wrap.appendChild(thumb);
+    wrap.appendChild(dot);
+
+    const label = document.createElement('div');
+    label.className = 'film-name';
+    label.textContent = img.name.replace(/\.[^.]+$/, '');
+
+    item.appendChild(wrap);
+    item.appendChild(label);
+    item.addEventListener('click', () => selectImage(idx));
+    strip.insertBefore(item, addBtn);
+  });
+
+  updateFilmstripDots();
+
+  setTimeout(() => {
+    const active = strip.querySelector('.film-item.active');
+    if (active) active.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, 0);
+}
+
+function selectImage(idx) {
+  if (idx < 0 || idx >= images.length) return;
+  currentIdx = idx;
+
+  const img = images[idx];
+
+  outCanvas.width  = befCanvas.width  = img.width;
+  outCanvas.height = befCanvas.height = img.height;
+
+  // Draw original into before-canvas for split view
+  const tmp = document.createElement('canvas');
+  tmp.width = img.width; tmp.height = img.height;
+  tmp.getContext('2d').putImageData(img.originalData, 0, 0);
+  befCtx.drawImage(tmp, 0, 0);
+
+  // Load this image's settings into sliders (without writing back to images)
+  loadSettingsIntoUI(img.settings);
+
+  $('image-info').style.display = 'inline';
+  $('image-info').textContent = `${img.name}  ·  ${img.width} × ${img.height}`;
+
+  $('filmstrip').querySelectorAll('.film-item').forEach((el, i) => {
+    el.classList.toggle('active', i === idx);
+  });
+  updateFilmstripDots();
+  scheduleProcess();
+}
+
+// ════════════════════════════════════════════════════════════
+//  Processing
+// ════════════════════════════════════════════════════════════
+function scheduleProcess() {
+  if (processTimer) clearTimeout(processTimer);
+  processTimer = setTimeout(processImage, 25);
+}
+
+function processImage() {
+  if (currentIdx < 0 || processing) return;
+  processing = true;
+  setTimeout(() => {
+    const result = runPipeline(images[currentIdx].originalData, images[currentIdx].settings);
+    outCtx.putImageData(result, 0, 0);
+    updateSplitOverlay();
+    drawHistogram(result.data);
+    processing = false;
+  }, 0);
+}
+
+// Pure pipeline — takes ImageData + settings snapshot, returns new ImageData
+function runPipeline(srcData, cfg) {
+  const w = srcData.width, h = srcData.height;
+  const srcBuf = srcData.data;
+
+  const lutR = buildLUT('r', cfg);
+  const lutG = buildLUT('g', cfg);
+  const lutB = buildLUT('b', cfg);
+
+  const expFactor = Math.pow(2, cfg.exposure);
+  const conFactor = (cfg.contrast + 100) / 100;
+  const hlAmt     = cfg.highlights / 200;
+  const shAmt     = cfg.shadows    / 200;
+  const sat       = cfg.saturation;
+  const vib       = cfg.vibrance;
+  const tempR     =  cfg.temperature * 0.0008;
+  const tempB     = -cfg.temperature * 0.0008;
+  const tintG     = -cfg.tint        * 0.0005;
+  const doHue     = cfg.hue !== 0;
+  const hueRad    = cfg.hue * Math.PI / 180;
+  const cosH      = Math.cos(hueRad);
+  const sinH      = Math.sin(hueRad);
+  const doVig     = cfg.vignette !== 0;
+  const vigAmt    = cfg.vignette;
+  const cx        = w * 0.5, cy = h * 0.5;
+  const maxDist   = Math.sqrt(cx*cx + cy*cy);
+  const doGrain   = cfg.grain > 0;
+  const grainAmt  = cfg.grain / 255;
+
+  const dst    = new ImageData(w, h);
+  const dstBuf = dst.data;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+
+      let r = lutR[srcBuf[i    ]] / 255;
+      let g = lutG[srcBuf[i + 1]] / 255;
+      let b = lutB[srcBuf[i + 2]] / 255;
+
+      r *= expFactor; g *= expFactor; b *= expFactor;
+
+      if (hlAmt !== 0) { r = toneBend(r,0.5,1.0,hlAmt); g = toneBend(g,0.5,1.0,hlAmt); b = toneBend(b,0.5,1.0,hlAmt); }
+      if (shAmt !== 0) { r = toneBend(r,0.0,0.5,shAmt); g = toneBend(g,0.0,0.5,shAmt); b = toneBend(b,0.0,0.5,shAmt); }
+
+      if (cfg.contrast !== 0) {
+        r = (r-0.5)*conFactor+0.5; g = (g-0.5)*conFactor+0.5; b = (b-0.5)*conFactor+0.5;
+      }
+
+      r += tempR; b += tempB; g += tintG;
+
+      if (sat !== 1.0) {
+        const l = 0.2126*r + 0.7152*g + 0.0722*b;
+        r = l+(r-l)*sat; g = l+(g-l)*sat; b = l+(b-l)*sat;
+      }
+
+      if (vib !== 0) {
+        const l = 0.2126*r + 0.7152*g + 0.0722*b;
+        const vf = 1 + vib*(1-(Math.max(r,g,b)-Math.min(r,g,b)));
+        r = l+(r-l)*vf; g = l+(g-l)*vf; b = l+(b-l)*vf;
+      }
+
+      if (doHue) {
+        const l = 0.2126*r + 0.7152*g + 0.0722*b;
+        const cr = r-l, cb = b-l;
+        r = l+cr*cosH-cb*sinH; b = l+cb*cosH+cr*sinH;
+      }
+
+      if (doGrain) { const n=(Math.random()-0.5)*grainAmt; r+=n; g+=n; b+=n; }
+
+      if (doVig) {
+        const dx=(x-cx)/maxDist, dy=(y-cy)/maxDist;
+        const vg=1+vigAmt*(dx*dx+dy*dy); r*=vg; g*=vg; b*=vg;
+      }
+
+      dstBuf[i    ] = clamp255(r);
+      dstBuf[i + 1] = clamp255(g);
+      dstBuf[i + 2] = clamp255(b);
+      dstBuf[i + 3] = srcBuf[i + 3];
+    }
+  }
+
+  return (cfg.clarity !== 0 || cfg.sharpness > 0) ? applyUnsharp(dst, w, h, cfg) : dst;
+}
+
+function toneBend(v, lo, hi, amount) {
+  if (v < lo || v > hi) return v;
+  return v + amount * Math.sin(((v-lo)/(hi-lo)) * Math.PI);
+}
+
+// ════════════════════════════════════════════════════════════
+//  Per-channel LUT (takes explicit settings)
+// ════════════════════════════════════════════════════════════
+function buildLUT(ch, cfg) {
+  const Ch    = ch.toUpperCase();
+  const base  = cfg['base'  + Ch];
+  const chGam = cfg[ch      + 'Gamma'];
+  const lift  = cfg[ch      + 'Lift'];
+  const gain  = cfg[ch      + 'Gain'];
+  const gGam  = cfg.gamma;
+  const bl    = cfg.blacks;
+  const wh    = cfg.whites;
+
+  const lut = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) {
+    let v = i / 255;
+    v = Math.min(1, v / base);
+    v = 1 - v;
+    if (chGam !== 1.0 && v > 0) v = Math.pow(v, 1/chGam);
+    v += lift;
+    v *= gain;
+    if (gGam  !== 1.0 && v > 0) v = Math.pow(v, 1/gGam);
+    v = (v - bl) / (wh - bl);
+    lut[i] = clamp255(v);
+  }
+  return lut;
+}
+
+function clamp255(v) { return v<=0?0:v>=1?255:(v*255+0.5)|0; }
+
+// ════════════════════════════════════════════════════════════
+//  Unsharp / Clarity
+// ════════════════════════════════════════════════════════════
+function applyUnsharp(imgData, w, h, cfg) {
+  const src   = imgData.data;
+  const blr1  = blur3x3(src, w, h);
+  const blr8  = blur3x3(blur3x3(blr1, w, h), w, h);
+  const out   = new ImageData(w, h);
+  const dst   = out.data;
+  const sh    = cfg.sharpness, cl = cfg.clarity;
+  for (let i = 0; i < src.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const o = src[i+c];
+      const s = o + sh*(o-blr1[i+c]);
+      dst[i+c] = Math.max(0, Math.min(255, (s + cl*(s-blr8[i+c]))|0));
+    }
+    dst[i+3] = src[i+3];
+  }
+  return out;
+}
+
+function blur3x3(data, w, h) {
+  const out = new Uint8Array(data.length);
+  for (let y=0;y<h;y++) for (let x=0;x<w;x++) {
+    const i=(y*w+x)*4;
+    for (let c=0;c<3;c++) {
+      let sum=0,cnt=0;
+      for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++) {
+        const nx=x+dx,ny=y+dy;
+        if (nx>=0&&nx<w&&ny>=0&&ny<h){sum+=data[(ny*w+nx)*4+c];cnt++;}
+      }
+      out[i+c]=(sum/cnt)|0;
+    }
+    out[i+3]=data[i+3];
+  }
+  return out;
+}
+
+// ════════════════════════════════════════════════════════════
+//  Auto detection (auto-base + auto-levels)
+// ════════════════════════════════════════════════════════════
+function autoDetectBase() {
+  if (currentIdx < 0) return;
+  const data = images[currentIdx].originalData.data;
+  const len  = data.length;
+  const rH = new Uint32Array(256), gH = new Uint32Array(256), bH = new Uint32Array(256);
+  for (let i=0;i<len;i+=4){rH[data[i]]++;gH[data[i+1]]++;bH[data[i+2]]++;}
+  const thresh = (len/4)*0.01;
+  setSlider('baseR', percentilePeak(rH,thresh)/255);
+  setSlider('baseG', percentilePeak(gH,thresh)/255);
+  setSlider('baseB', percentilePeak(bH,thresh)/255);
+  pushAllSettingsToImages();
+  scheduleProcess();
+}
+
+function percentilePeak(hist, thresh) {
+  let cum=0;
+  for (let i=255;i>=0;i--){cum+=hist[i];if(cum>=thresh)return Math.max(1,i);}
+  return 1;
+}
+
+function autoLevels() {
+  if (currentIdx < 0) return;
+  autoDetectBase();
+  setTimeout(() => {
+    const pixels = outCtx.getImageData(0, 0, outCanvas.width, outCanvas.height).data;
+    const lH = new Uint32Array(256);
+    for (let i=0;i<pixels.length;i+=4)
+      lH[(0.299*pixels[i]+0.587*pixels[i+1]+0.114*pixels[i+2])|0]++;
+    const clipN = outCanvas.width*outCanvas.height*0.001;
+    let black=0,white=255,cum=0;
+    for (let i=0;i<256;i++){cum+=lH[i];if(cum>clipN){black=i;break;}}
+    cum=0;
+    for (let i=255;i>=0;i--){cum+=lH[i];if(cum>clipN){white=i;break;}}
+    setSlider('blacks', black/255);
+    setSlider('whites', white/255);
+    pushAllSettingsToImages();
+    scheduleProcess();
+  }, 80);
+}
+
+// ════════════════════════════════════════════════════════════
+//  Histogram
+// ════════════════════════════════════════════════════════════
+function drawHistogram(pixels) {
+  const rH=new Float32Array(256),gH=new Float32Array(256),bH=new Float32Array(256),lH=new Float32Array(256);
+  for (let i=0;i<pixels.length;i+=4){
+    rH[pixels[i]]++;gH[pixels[i+1]]++;bH[pixels[i+2]]++;
+    lH[(0.299*pixels[i]+0.587*pixels[i+1]+0.114*pixels[i+2])|0]++;
+  }
+  let peak=1;
+  for (let i=0;i<256;i++){if(rH[i]>peak)peak=rH[i];if(gH[i]>peak)peak=gH[i];if(bH[i]>peak)peak=bH[i];}
+  const cw=histCanvas.width,ch=histCanvas.height;
+  histCtx.fillStyle='#0a0a0a';histCtx.fillRect(0,0,cw,ch);
+  histCtx.strokeStyle='rgba(255,255,255,0.04)';histCtx.lineWidth=1;
+  for (const x of [0.25,0.5,0.75]){histCtx.beginPath();histCtx.moveTo(x*cw,0);histCtx.lineTo(x*cw,ch);histCtx.stroke();}
+  histCurve(lH,peak,cw,ch,'rgba(255,255,255,0.18)');
+  histCurve(rH,peak,cw,ch,'rgba(217,96,96,0.55)');
+  histCurve(gH,peak,cw,ch,'rgba(96,200,112,0.55)');
+  histCurve(bH,peak,cw,ch,'rgba(96,144,216,0.55)');
+}
+
+function histCurve(bins,peak,cw,ch,color){
+  histCtx.fillStyle=color;histCtx.beginPath();histCtx.moveTo(0,ch);
+  for(let i=0;i<256;i++)histCtx.lineTo((i/255)*cw,ch-Math.sqrt(bins[i]/peak)*ch);
+  histCtx.lineTo(cw,ch);histCtx.closePath();histCtx.fill();
+}
+
+// ════════════════════════════════════════════════════════════
+//  Split view
+// ════════════════════════════════════════════════════════════
+function toggleSplit() {
+  splitMode = !splitMode;
+  $('split-btn').classList.toggle('active', splitMode);
+  $('split-handle').style.display = splitMode?'block':'none';
+  $('lbl-before').style.display   = splitMode?'block':'none';
+  $('lbl-after').style.display    = splitMode?'block':'none';
+  befCanvas.style.display         = splitMode?'block':'none';
+  updateSplitOverlay();
+}
+
+function updateSplitOverlay() {
+  if (!splitMode) return;
+  const pct = splitPos*100;
+  befCanvas.style.clipPath    = `inset(0 ${(100-pct).toFixed(2)}% 0 0)`;
+  $('split-handle').style.left = pct+'%';
+}
+
+$('split-handle').addEventListener('mousedown', e=>{draggingSplit=true;e.preventDefault();});
+document.addEventListener('mousemove', e=>{
+  if(!draggingSplit)return;
+  const r=outCanvas.getBoundingClientRect();
+  splitPos=Math.max(0.02,Math.min(0.98,(e.clientX-r.left)/r.width));
+  updateSplitOverlay();
+});
+document.addEventListener('mouseup',()=>{draggingSplit=false;});
+
+$('split-handle').addEventListener('touchstart',e=>{draggingSplit=true;e.preventDefault();},{passive:false});
+document.addEventListener('touchmove',e=>{
+  if(!draggingSplit)return;
+  const r=outCanvas.getBoundingClientRect();
+  splitPos=Math.max(0.02,Math.min(0.98,(e.touches[0].clientX-r.left)/r.width));
+  updateSplitOverlay();
+},{passive:true});
+document.addEventListener('touchend',()=>{draggingSplit=false;});
+
+// ════════════════════════════════════════════════════════════
+//  Presets
+// ════════════════════════════════════════════════════════════
+const PRESETS = {
+  c41:       {baseR:0.88,baseG:0.66,baseB:0.44,gamma:1.0, contrast:12,exposure:0.10,highlights:-10,shadows:8, saturation:1.08,vibrance:0.10,temperature:8, tint:0, rGamma:1.00,gGamma:1.05,bGamma:0.95,rGain:1.00,gGain:1.00,bGain:1.00},
+  kodakgold: {baseR:0.93,baseG:0.70,baseB:0.47,gamma:1.05,contrast:8, exposure:0.15,highlights:-5, shadows:5, saturation:1.05,vibrance:0.12,temperature:20,tint:4, rGamma:1.06,gGamma:1.00,bGamma:0.92,rGain:1.04,gGain:1.00,bGain:0.96},
+  fuji:      {baseR:0.83,baseG:0.63,baseB:0.43,gamma:0.98,contrast:14,exposure:0.05,highlights:-8, shadows:6, saturation:1.12,vibrance:0.15,temperature:-6,tint:-4,rGamma:0.96,gGamma:1.00,bGamma:1.04,rGain:0.97,gGain:1.00,bGain:1.03},
+  portra:    {baseR:0.86,baseG:0.65,baseB:0.43,gamma:1.02,contrast:6, exposure:0.10,highlights:-12,shadows:10,saturation:0.95,vibrance:0.18,temperature:12,tint:2, rGamma:1.03,gGamma:1.01,bGamma:0.97,rGain:1.02,gGain:1.00,bGain:0.98},
+  bw:        {baseR:0.85,baseG:0.85,baseB:0.85,gamma:1.0, contrast:18,exposure:0.05,highlights:-5, shadows:5, saturation:0.00,vibrance:0.00,temperature:0, tint:0, rGamma:1.00,gGamma:1.00,bGamma:1.00,rGain:1.00,gGain:1.00,bGain:1.00},
+  neutral:   {baseR:1.00,baseG:1.00,baseB:1.00,gamma:1.0, contrast:0, exposure:0,   highlights:0,  shadows:0, saturation:1.00,vibrance:0.00,temperature:0, tint:0, rGamma:1.00,gGamma:1.00,bGamma:1.00,rGain:1.00,gGain:1.00,bGain:1.00},
+};
+
+function applyPreset(name) {
+  const p = PRESETS[name]; if(!p) return;
+  Object.keys(p).forEach(k => setSlider(k, p[k]));
+  pushAllSettingsToImages();
+  scheduleProcess();
+}
+
+// ════════════════════════════════════════════════════════════
+//  Reset
+// ════════════════════════════════════════════════════════════
+function resetAll() {
+  const d = defaultSettings();
+  SLIDERS.forEach(k => setSlider(k, d[k]));
+  pushAllSettingsToImages();
+  scheduleProcess();
+}
+
+// ════════════════════════════════════════════════════════════
+//  Section toggle
+// ════════════════════════════════════════════════════════════
+function toggleSec(hdr) { hdr.closest('.sec').classList.toggle('collapsed'); }
+
+// ════════════════════════════════════════════════════════════
+//  Export – single
+// ════════════════════════════════════════════════════════════
+function exportCurrent() {
+  if (currentIdx < 0) return;
+  const a = document.createElement('a');
+  a.href     = outCanvas.toDataURL('image/jpeg', 0.95);
+  a.download = images[currentIdx].name.replace(/\.[^.]+$/, '') + '_positive.jpg';
+  a.click();
+}
+
+// ════════════════════════════════════════════════════════════
+//  Export All – bulk ZIP
+// ════════════════════════════════════════════════════════════
+async function exportAll() {
+  if (images.length === 0) return;
+
+  const total = images.length;
+  showProgressModal(`Exporting ${total} photo${total > 1 ? 's' : ''}…`);
+
+  const zip = new JSZip();
+
+  for (let i = 0; i < total; i++) {
+    updateProgressModal(i, total, images[i].name);
+    await new Promise(r => setTimeout(r, 0));  // yield to repaint
+
+    const result = runPipeline(images[i].originalData, images[i].settings);
+    const blob   = await imageDataToBlob(result, 0.95);
+    zip.file(images[i].name.replace(/\.[^.]+$/, '') + '_positive.jpg', blob);
+  }
+
+  updateProgressModal(total, total, 'Generating ZIP…');
+  await new Promise(r => setTimeout(r, 0));
+
+  const content = await zip.generateAsync({ type: 'blob' }, meta => {
+    $('progress-fill').style.width = (99 + meta.percent * 0.01).toFixed(1) + '%';
+  });
+
+  hideProgressModal();
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(content);
+  a.download = 'darkroom-export.zip';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+
+function imageDataToBlob(imageData, quality) {
+  return new Promise(resolve => {
+    const c = document.createElement('canvas');
+    c.width = imageData.width; c.height = imageData.height;
+    c.getContext('2d').putImageData(imageData, 0, 0);
+    c.toBlob(resolve, 'image/jpeg', quality);
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  Init slider display values
+// ════════════════════════════════════════════════════════════
+SLIDERS.forEach(id => {
+  const vel = $('v-' + id);
+  if (vel) vel.textContent = fmt(id, S[id]);
+});
+updateQueueUI();
+</script>
+</body>
+</html>
